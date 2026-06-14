@@ -727,3 +727,76 @@ test('WS proxy notifies the browser when the upstream closes the connection', as
     upstream.close();
   }
 });
+
+// ─── /api/mcp-stdio (MCP stdio relay) ───────────────────────────────────────
+
+function mcpStdioUrl() {
+  return `ws://127.0.0.1:${server.address().port}/api/mcp-stdio`;
+}
+
+// A tiny line-delimited JSON-RPC "MCP server": echoes back each request with
+// its params, also emitting one stderr line per request for good measure.
+const ECHO_MCP_SERVER_SCRIPT = `
+const readline = require('readline');
+const rl = readline.createInterface({ input: process.stdin });
+rl.on('line', line => {
+  let msg;
+  try { msg = JSON.parse(line); } catch { return; }
+  process.stderr.write('got ' + msg.method + '\\n');
+  process.stdout.write(JSON.stringify({ jsonrpc: '2.0', id: msg.id, result: { echo: msg.params || null } }) + '\\n');
+});
+`;
+
+test('MCP stdio relay spawns a process and relays newline-delimited JSON-RPC', async () => {
+  const ws = new WebSocket(mcpStdioUrl());
+  try {
+    await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+    const nextMessage = queueMessages(ws);
+    ws.send(JSON.stringify({ command: 'node', args: ['-e', ECHO_MCP_SERVER_SCRIPT] }));
+
+    const opened = await nextMessage();
+    assert.strictEqual(opened.type, 'open');
+
+    ws.send(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping', params: { hello: 'world' } }));
+
+    let msg = await nextMessage();
+    if (msg.type === 'stderr') msg = await nextMessage();
+    assert.strictEqual(msg.type, 'message');
+    assert.deepStrictEqual(msg.data, { jsonrpc: '2.0', id: 1, result: { echo: { hello: 'world' } } });
+  } finally {
+    ws.close();
+  }
+});
+
+test('MCP stdio relay reports an error for a command that cannot be spawned', async () => {
+  const ws = new WebSocket(mcpStdioUrl());
+  try {
+    await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+    const nextMessage = queueMessages(ws);
+    ws.send(JSON.stringify({ command: '/no/such/command-salvo-test', args: [] }));
+
+    const msg = await nextMessage();
+    assert.strictEqual(msg.type, 'error');
+    assert.ok(msg.message);
+  } finally {
+    ws.close();
+  }
+});
+
+test('MCP stdio relay notifies the browser when the process exits', async () => {
+  const ws = new WebSocket(mcpStdioUrl());
+  try {
+    await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+    const nextMessage = queueMessages(ws);
+    ws.send(JSON.stringify({ command: 'node', args: ['-e', 'process.exit(0)'] }));
+
+    const opened = await nextMessage();
+    assert.strictEqual(opened.type, 'open');
+
+    const closed = await nextMessage();
+    assert.strictEqual(closed.type, 'close');
+    assert.strictEqual(closed.code, 0);
+  } finally {
+    ws.close();
+  }
+});

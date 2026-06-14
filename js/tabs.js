@@ -44,6 +44,7 @@ function closeTab(tabId, event) {
   if (idx === -1) return;
 
   disconnectWs(state.tabs[idx]);
+  disconnectMcp(state.tabs[idx]);
   syncTabIntoCols(state.tabs[idx]);
   state.tabs.splice(idx, 1);
 

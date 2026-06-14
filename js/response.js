@@ -42,6 +42,12 @@ function renderRespPanel() {
     return;
   }
 
+  // MCP session — its own rendering path (JSON-RPC transcript + composer)
+  if (resp.mcp) {
+    renderMcpRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exBtn);
+    return;
+  }
+
   // Network / abort error
   if (resp.error) {
     badge.style.display   = 'none';
@@ -257,6 +263,80 @@ function renderWsRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exBt
       <input id="ws-msg-input" type="text" placeholder="Message to send" ${open ? '' : 'disabled'}
              onkeydown="if(event.key==='Enter'){sendWsComposerMessage();event.preventDefault();}">
       <button class="btn-primary" onclick="sendWsComposerMessage()" ${open ? '' : 'disabled'}>Send</button>
+    </div>`;
+
+  wrap.innerHTML = html;
+
+  const transcript = wrap.querySelector('.ws-transcript');
+  if (transcript) transcript.scrollTop = transcript.scrollHeight;
+}
+
+// Renders an MCP session: a transcript of JSON-RPC messages (sent and
+// received) on the Body tab, plus a method/params composer while the
+// session is open. The Headers/Tests tabs aren't applicable to an MCP
+// session.
+const MCP_STATUS_LABEL = { connecting: 'Connecting…', open: 'Connected', closed: 'Closed', error: 'Error' };
+
+function renderMcpRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exBtn) {
+  copyBtn.style.display = 'none';
+  exBtn.style.display   = 'none';
+  sizeEl.style.display  = 'none';
+  badge.style.display   = 'none';
+
+  timeEl.style.display = '';
+  const statusLabel = MCP_STATUS_LABEL[resp.status] || '';
+  timeEl.textContent = resp.serverInfo
+    ? `${statusLabel} — ${resp.serverInfo.name}${resp.serverInfo.version ? ' ' + resp.serverInfo.version : ''}`
+    : statusLabel;
+
+  if (tab.respTab === 'headers') {
+    wrap.innerHTML = `<span class="muted">Headers are not available for MCP sessions.</span>`;
+    return;
+  }
+
+  if (tab.respTab === 'tests') {
+    wrap.innerHTML = `<span class="muted">Tests are not supported for MCP sessions.</span>`;
+    return;
+  }
+
+  // Body tab — JSON-RPC transcript + composer
+  let html = '<div class="ws-transcript">';
+  if (resp.error) {
+    html += `<div style="color:var(--danger);background:var(--danger-bg);border:1px solid var(--danger-border);border-radius:4px;padding:8px 12px;margin-bottom:8px">${esc(resp.error)}</div>`;
+  }
+  if (!resp.messages.length) {
+    html += `<span class="muted">${resp.status === 'connecting' ? 'Connecting…' : 'No messages yet.'}</span>`;
+  } else {
+    html += resp.messages.map(m => {
+      if (m.dir === 'system') {
+        return `<div class="ws-msg ws-msg-system">
+          <span class="ws-msg-time">${new Date(m.time).toLocaleTimeString()}</span>
+          <span class="ws-msg-text">${esc(m.text)}</span>
+        </div>`;
+      }
+      const dirLabel = m.dir === 'sent' ? '↑ sent' : '↓ received';
+      return `<div class="ws-msg ws-msg-${m.dir}">
+        <div class="ws-msg-meta">
+          <span class="ws-msg-dir">${dirLabel}</span>
+          <span class="ws-msg-time">${new Date(m.time).toLocaleTimeString()}</span>
+        </div>
+        <pre class="ws-msg-data">${esc(JSON.stringify(m.data, null, 2))}</pre>
+      </div>`;
+    }).join('');
+  }
+  html += '</div>';
+
+  const open = resp.status === 'open';
+  html += `
+    <div class="mcp-composer">
+      <div class="mcp-composer-row">
+        <input id="mcp-method-input" list="mcp-methods" placeholder="method (e.g. tools/list)" value="tools/list" ${open ? '' : 'disabled'}>
+        <button class="btn-primary" onclick="sendMcpComposerMessage()" ${open ? '' : 'disabled'}>Send</button>
+      </div>
+      <datalist id="mcp-methods">
+        ${MCP_METHODS.map(m => `<option value="${esc(m)}">`).join('')}
+      </datalist>
+      <textarea id="mcp-params-input" placeholder="params (JSON)" rows="2" ${open ? '' : 'disabled'}>{}</textarea>
     </div>`;
 
   wrap.innerHTML = html;

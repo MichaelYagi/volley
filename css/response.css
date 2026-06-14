@@ -116,6 +116,19 @@
 .ws-composer { display: flex; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--bg-input); }
 .ws-composer input { flex: 1; font-family: monospace; font-size: 12px; padding: 5px 10px; }
 
+/* ─── MCP composer ────────────────────────────────────────────────────────────── */
+.mcp-composer        { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--bg-input); }
+.mcp-composer-row    { display: flex; gap: 8px; margin-bottom: 6px; }
+.mcp-composer-row input { flex: 1; font-family: monospace; font-size: 12px; padding: 5px 10px; }
+.mcp-composer textarea {
+  width: 100%;
+  font-family: monospace;
+  font-size: 12px;
+  padding: 5px 10px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
 #hist-panel { display: flex; flex-direction: column; height: 100%; }
 
 #hist-panel .hist-header {

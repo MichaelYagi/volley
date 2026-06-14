@@ -5,6 +5,7 @@ async function sendRequest() {
   if (!tab || tab.loading) return;
 
   if (isWsUrl(tab.req.url)) return connectWs(tab);
+  if (isMcpUrl(tab.req.url)) return connectMcp(tab);
 
   tab.abortCtrl = new AbortController();
   tab.loading   = true;
@@ -161,7 +162,7 @@ async function buildRequestArgs(req) {
   // URL + path variables + query params
   let raw = interp(req.url);
   raw = substitutePathVars(raw, req.pathVars);
-  if (!raw.match(/^(https?|wss?):\/\//i)) raw = 'https://' + raw;
+  if (!raw.match(/^(https?|wss?|mcp\+https?):\/\//i)) raw = 'https://' + raw;
   const urlObj = new URL(raw);
 
   req.params

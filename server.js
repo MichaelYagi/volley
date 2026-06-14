@@ -11,6 +11,7 @@ const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
 const os     = require('os');
+const { spawn } = require('child_process');
 
 // ─── CLI args ───────────────────────────────────────────────────────────────────
 // `node server.js --<name>=<value>` or `node server.js --<name> <value>`
@@ -307,6 +308,24 @@ class WsFrameDecoder {
     }
     return frames;
   }
+}
+
+// Returns a per-direction assembler that accumulates fragmented messages
+// (CONTINUATION frames) and calls onComplete(opcode, payload) once fin=true.
+function makeFragmentAssembler() {
+  let pending = null; // { opcode, chunks }
+  return (frame, onComplete) => {
+    if (frame.opcode === WS_OP.CONTINUATION) {
+      if (!pending) return;
+      pending.chunks.push(frame.payload);
+    } else {
+      pending = { opcode: frame.opcode, chunks: [frame.payload] };
+    }
+    if (!frame.fin) return;
+    const { opcode, chunks } = pending;
+    pending = null;
+    onComplete(opcode, Buffer.concat(chunks));
+  };
 }
 
 // Opens a raw TCP/TLS socket to `targetUrl` and performs the client-side
@@ -945,18 +964,23 @@ const server = http.createServer((req, res) => {
   });
 });
 
-// ─── WebSocket relay endpoint (/api/ws-proxy) ──────────────────────────────────
-// See the "WebSocket relay" section above for the wire protocol.
+// ─── WebSocket / MCP-stdio relay endpoints ─────────────────────────────────────
+// Both /api/ws-proxy and /api/mcp-stdio are plain WebSocket upgrades from the
+// page; dispatch on pathname.
 server.on('upgrade', (req, socket, head) => {
   const u = new URL(req.url, 'http://localhost');
-  if (u.pathname !== '/api/ws-proxy' || (req.headers.upgrade || '').toLowerCase() !== 'websocket') {
-    socket.destroy();
-    return;
-  }
+  if ((req.headers.upgrade || '').toLowerCase() !== 'websocket') { socket.destroy(); return; }
 
   const key = req.headers['sec-websocket-key'];
   if (!key) { socket.destroy(); return; }
 
+  if (u.pathname === '/api/ws-proxy')  return handleWsProxyUpgrade(socket, head, key);
+  if (u.pathname === '/api/mcp-stdio') return handleMcpStdioUpgrade(socket, head, key);
+  socket.destroy();
+});
+
+// See the "WebSocket relay" section above for the wire protocol.
+function handleWsProxyUpgrade(socket, head, key) {
   socket.write(
     'HTTP/1.1 101 Switching Protocols\r\n' +
     'Upgrade: websocket\r\n' +
@@ -973,24 +997,6 @@ server.on('upgrade', (req, socket, head) => {
 
   let upstream   = null;
   let connecting = false;
-
-  // Returns a per-direction assembler that accumulates fragmented messages
-  // (CONTINUATION frames) and calls onComplete(opcode, payload) once fin=true.
-  function makeFragmentAssembler() {
-    let pending = null; // { opcode, chunks }
-    return (frame, onComplete) => {
-      if (frame.opcode === WS_OP.CONTINUATION) {
-        if (!pending) return;
-        pending.chunks.push(frame.payload);
-      } else {
-        pending = { opcode: frame.opcode, chunks: [frame.payload] };
-      }
-      if (!frame.fin) return;
-      const { opcode, chunks } = pending;
-      pending = null;
-      onComplete(opcode, Buffer.concat(chunks));
-    };
-  }
 
   const browserAssemble  = makeFragmentAssembler();
   const upstreamAssemble = makeFragmentAssembler();
@@ -1074,7 +1080,128 @@ server.on('upgrade', (req, socket, head) => {
   if (head && head.length) {
     for (const frame of browserDecoder.push(head)) handleBrowserFrame(frame);
   }
-});
+}
+
+// ─── MCP stdio relay (/api/mcp-stdio) ──────────────────────────────────────────
+// MCP servers using the stdio transport are local child processes, so the
+// browser can't talk to them directly: the page opens a WebSocket to
+// /api/mcp-stdio, sends one JSON "connect" control message
+// ({ command, args, env, cwd }), and Salvo spawns that process. From then on,
+// each WS text frame from the browser is written to the child's stdin as a
+// line of JSON-RPC; each newline-delimited line on the child's stdout is
+// wrapped as a JSON control message ({ type: 'message', data }) and sent to
+// the browser. stderr lines are forwarded as { type: 'stderr', data } for
+// debugging. { type: 'open' } is sent once the process spawns, and
+// { type: 'close', code, signal } once it exits.
+function handleMcpStdioUpgrade(socket, head, key) {
+  socket.write(
+    'HTTP/1.1 101 Switching Protocols\r\n' +
+    'Upgrade: websocket\r\n' +
+    'Connection: Upgrade\r\n' +
+    `Sec-WebSocket-Accept: ${wsAcceptKey(key)}\r\n\r\n`
+  );
+
+  const toBrowser    = (type, extra) => socket.write(encodeWsFrame(WS_OP.TEXT, JSON.stringify({ type, ...extra }), false));
+  const closeBrowser = payload => { socket.write(encodeWsFrame(WS_OP.CLOSE, payload || Buffer.alloc(0), false)); socket.end(); };
+
+  let child      = null;
+  let connecting = false;
+  let stdoutBuf  = '';
+
+  function forwardLines(buf, chunk, type) {
+    buf += chunk.toString('utf8');
+    const lines = buf.split('\n');
+    buf = lines.pop();
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      if (type === 'message') {
+        let data;
+        try { data = JSON.parse(line); } catch { data = line; }
+        toBrowser('message', { data });
+      } else {
+        toBrowser('stderr', { data: line });
+      }
+    }
+    return buf;
+  }
+
+  const browserAssemble = makeFragmentAssembler();
+  const browserDecoder  = new WsFrameDecoder();
+
+  function handleBrowserFrame(frame) {
+    if (frame.opcode === WS_OP.PING) { socket.write(encodeWsFrame(WS_OP.PONG, frame.payload, false)); return; }
+    if (frame.opcode === WS_OP.PONG) return;
+    if (frame.opcode === WS_OP.CLOSE) {
+      socket.write(encodeWsFrame(WS_OP.CLOSE, frame.payload, false));
+      socket.end();
+      child?.kill();
+      return;
+    }
+
+    if (!child) {
+      if (connecting) return;
+      browserAssemble(frame, (opcode, payload) => {
+        if (opcode !== WS_OP.TEXT) { toBrowser('error', { message: 'First message must be a JSON connect request' }); closeBrowser(); return; }
+
+        let command, args, env, cwd;
+        try {
+          const msg = JSON.parse(payload.toString('utf8'));
+          command = msg.command;
+          args    = msg.args || [];
+          env     = msg.env  || {};
+          cwd     = msg.cwd  || undefined;
+          if (typeof command !== 'string' || !command) throw new Error('"command" must be a non-empty string');
+          if (!Array.isArray(args) || !args.every(a => typeof a === 'string')) throw new Error('"args" must be an array of strings');
+        } catch (err) {
+          toBrowser('error', { message: `Invalid connect message: ${err.message}` });
+          closeBrowser();
+          return;
+        }
+
+        connecting = true;
+        try {
+          child = spawn(command, args, { cwd, env: { ...process.env, ...env }, stdio: ['pipe', 'pipe', 'pipe'] });
+        } catch (err) {
+          connecting = false;
+          toBrowser('error', { message: err.message });
+          closeBrowser();
+          return;
+        }
+
+        let stderrBuf = '';
+
+        child.on('spawn', () => { connecting = false; toBrowser('open'); });
+        child.stdout.on('data', chunk => { stdoutBuf = forwardLines(stdoutBuf, chunk, 'message'); });
+        child.stderr.on('data', chunk => { stderrBuf = forwardLines(stderrBuf, chunk, 'stderr'); });
+        child.on('error', err => {
+          connecting = false;
+          toBrowser('error', { message: err.message });
+          closeBrowser();
+        });
+        child.on('close', (code, signal) => {
+          toBrowser('close', { code, signal });
+          closeBrowser();
+        });
+      });
+      return;
+    }
+
+    browserAssemble(frame, (opcode, payload) => {
+      if (opcode !== WS_OP.TEXT) return;
+      if (child.stdin.writable) child.stdin.write(payload.toString('utf8') + '\n');
+    });
+  }
+
+  socket.on('data', chunk => {
+    for (const frame of browserDecoder.push(chunk)) handleBrowserFrame(frame);
+  });
+  socket.on('close', () => child?.kill());
+  socket.on('error', () => child?.kill());
+
+  if (head && head.length) {
+    for (const frame of browserDecoder.push(head)) handleBrowserFrame(frame);
+  }
+}
 
 // ─── LAN-accessible addresses, for the startup log ─────────────────────────────
 function lanAddresses() {

@@ -23,6 +23,8 @@ node server.js --port=3000
 
 - `GET /api/data` — reads `data/` and returns `{ cols, envs, hist }`
 - `POST /api/save` — accepts `{ cols, envs, hist }` and writes it back to `data/`
+- `/api/ws-proxy` (WebSocket upgrade) — relays a browser WebSocket connection to an upstream `ws(s)://` target (see `js/websocket.js`)
+- `/api/mcp-stdio` (WebSocket upgrade) — spawns a local child process for `mcp+stdio://` URLs and relays newline-delimited JSON-RPC over its stdin/stdout (see `js/mcp.js`)
 
 A plain static server (e.g. `python3 -m http.server`) won't work — Salvo needs these API endpoints to load and save its data.
 
@@ -53,6 +55,7 @@ All JS files share the **global browser scope** and are loaded as plain `<script
 | `js/response.js` | `renderRespPanel()`, `switchRespTab()`, `copyResponse()`, `buildJsonTree()` |
 | `js/send.js` | `sendRequest()`, `cancelReq()`, `buildRequestArgs()`, `parseResponse()`, `ensureOAuthToken()`/`fetchOAuthToken()`/`manualFetchOAuthToken()`, `buildJwt()` |
 | `js/websocket.js` | `isWsUrl()`, `connectWs()`, `disconnectWs()`, `sendWsMessage()`, `sendWsComposerMessage()`, `updateSendBtn()` |
+| `js/mcp.js` | MCP (Model Context Protocol) client — `isMcpUrl()`, `mcpTransport()`, `connectMcp()`/`disconnectMcp()`, `connectMcpStdio()`, `mcpSend()`/`sendMcpHttp()`, `handleMcpMessage()`, `sendMcpComposerMessage()`, `splitCommandLine()` |
 | `js/collections.js` | `findReq()`, `selectReq()`, `addCollection/Folder/Req()`, `deleteCol/Req()`, `dupReq()`, `renameCol()`, `exportCol()`, `importFile()`, `parsePostman()` |
 | `js/modals.js` | `openEnvModal()`, `closeEnvModal()`, `renderEnvSelect()`, `renderEnvModal()`, `renderEnvList()`, `renderEnvDetail()` (vars edited via `kvEditorHTML(env.vars, 'envVars')`), `envSelect/Rename/Use/Delete()`, `envQuickSwitch()`, `addEnv()`, `getSelEnv()` |
 | `js/app.js` | `init()`, `loadData()`, `saveAll()`, `setupResizer()`, `toggleHistPanel()`, `renderHistPanel()`, `replayHistory()`, `clearHistory()` |
@@ -66,7 +69,7 @@ All JS files share the **global browser scope** and are loaded as plain `<script
 | `css/base.css` | Reset, `#app`/`#workspace`/`#main` layout, `#topbar`, form controls, buttons (`.btn-primary`, `.btn-danger`), `.tabbar`/`.tab`/`.tab-badge`, `.panel`, `.spinner` |
 | `css/sidebar.css` | `#sidebar`, `#resizer`, `.col-header`, `.col-arrow`, `.col-name`, `.col-body`, `.folder-header`, `.req-row`, `.req-method`, `.req-name`, `.ctx-menu`, `.ctx-item` |
 | `css/request.css` | `#empty-state`, `#url-bar`, `#req-name-input`, `.kv-grid`, `.kv-grid-notes`, `.kv-note`, `.kv-del`, `.kv-add`, `.body-types`, `#body-raw-area`, `.auth-row` |
-| `css/response.css` | `#resp-section`, `#resp-header`, `.resp-label`, `.status-badge`, `#resp-body-wrap`, JSON tree classes (`.jt-*`), SSE event log (`.sse-event-*`), WebSocket transcript (`.ws-*`), `#hist-panel`, `.hist-item` |
+| `css/response.css` | `#resp-section`, `#resp-header`, `.resp-label`, `.status-badge`, `#resp-body-wrap`, JSON tree classes (`.jt-*`), SSE event log (`.sse-event-*`), WebSocket transcript (`.ws-*`), MCP composer (`.mcp-*`), `#hist-panel`, `.hist-item` |
 | `css/modals.css` | `.modal-bg`, `.modal`, `.modal-footer`, `.env-layout`, `.env-item`, `.env-kv-grid`, `.notif` (toasts) |
 
 ## State shape
@@ -186,6 +189,8 @@ older saved requests get the new fields with sane defaults.
 **Saving to disk** — `Ctrl+S`/`Cmd+S` (handled in `init()` in `app.js`) still works and calls `saveAll()` (non-silent, shows a "Saved" toast) for an explicit manual save. On `beforeunload`, `init()` also flushes any pending edits via `syncAllTabsIntoCols()` and writes to disk with `navigator.sendBeacon('/api/save', ...)` so closing the tab doesn't lose in-flight changes.
 
 **Tab rendering** — `renderReqPanel()` is the single dispatcher for the request editor panel. Adding a new tab means: adding a button to `#req-tabbar` in `index.html`, adding a case in the `switch` in `renderReqPanel()`, and implementing the HTML-returning function.
+
+**Non-HTTP URL schemes** — `sendRequest()` (`js/send.js`) dispatches on the request URL's scheme before falling back to a normal `fetch`: `ws://`/`wss://` (`isWsUrl()`) go to `connectWs()`, and `mcp+http://`/`mcp+https://`/`mcp+stdio://` (`isMcpUrl()`) go to `connectMcp()`. Both replace the usual send/response flow with a persistent session: a Connect/Disconnect button (`updateSendBtn()` in `js/websocket.js`) and a transcript + composer in the response panel (`renderRespPanel()` in `js/response.js`). For MCP, `mcp+http(s)://` strips the `mcp+` prefix and speaks the Streamable HTTP transport via `/api/proxy-stream`; `mcp+stdio://<command line>` spawns that command line as a local child process via the `/api/mcp-stdio` WebSocket relay and speaks newline-delimited JSON-RPC over its stdin/stdout.
 
 ## Things to be aware of
 

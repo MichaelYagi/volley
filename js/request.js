@@ -30,6 +30,7 @@ function syncReqEditor() {
   updateTabBadges();
   renderReqPanel();
   renderRespPanel();
+  updateSendBtn();
 }
 
 // ─── Method / name change handlers (called from inline HTML events) ───────────

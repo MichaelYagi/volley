@@ -36,6 +36,12 @@ function renderRespPanel() {
     return;
   }
 
+  // WebSocket connection — its own rendering path (transcript + composer)
+  if (resp.ws) {
+    renderWsRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exBtn);
+    return;
+  }
+
   // Network / abort error
   if (resp.error) {
     badge.style.display   = 'none';
@@ -191,6 +197,72 @@ function renderSseRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exB
     ).join('');
   }
   wrap.innerHTML = html;
+}
+
+// Renders a WebSocket connection: a live transcript of sent/received messages
+// on the Body tab, plus a message composer while the connection is open. The
+// Headers/Tests tabs aren't applicable to a relayed WS connection.
+const WS_STATUS_LABEL = { connecting: 'Connecting…', open: 'Connected', closed: 'Closed', error: 'Error' };
+
+function renderWsRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exBtn) {
+  copyBtn.style.display = 'none';
+  exBtn.style.display   = 'none';
+  sizeEl.style.display  = 'none';
+  badge.style.display   = 'none';
+
+  timeEl.style.display = '';
+  timeEl.textContent   = WS_STATUS_LABEL[resp.status] || '';
+
+  if (tab.respTab === 'headers') {
+    wrap.innerHTML = `<span class="muted">Headers are not available for WebSocket connections.</span>`;
+    return;
+  }
+
+  if (tab.respTab === 'tests') {
+    wrap.innerHTML = `<span class="muted">Tests are not supported for WebSocket connections.</span>`;
+    return;
+  }
+
+  // Body tab — message transcript + composer
+  let html = '<div class="ws-transcript">';
+  if (resp.error) {
+    html += `<div style="color:var(--danger);background:var(--danger-bg);border:1px solid var(--danger-border);border-radius:4px;padding:8px 12px;margin-bottom:8px">${esc(resp.error)}</div>`;
+  }
+  if (!resp.messages.length) {
+    html += `<span class="muted">${resp.status === 'connecting' ? 'Connecting…' : 'No messages yet.'}</span>`;
+  } else {
+    html += resp.messages.map(m => {
+      if (m.dir === 'system') {
+        return `<div class="ws-msg ws-msg-system">
+          <span class="ws-msg-time">${new Date(m.time).toLocaleTimeString()}</span>
+          <span class="ws-msg-text">${esc(m.text)}</span>
+        </div>`;
+      }
+      const dirLabel = m.dir === 'sent' ? '↑ sent' : '↓ received';
+      const body     = m.binary ? `(binary, base64) ${m.data}` : m.data;
+      return `<div class="ws-msg ws-msg-${m.dir}">
+        <div class="ws-msg-meta">
+          <span class="ws-msg-dir">${dirLabel}</span>
+          <span class="ws-msg-time">${new Date(m.time).toLocaleTimeString()}</span>
+        </div>
+        <pre class="ws-msg-data">${esc(body)}</pre>
+      </div>`;
+    }).join('');
+  }
+  html += '</div>';
+
+  const open = resp.status === 'open';
+  html += `
+    <div class="ws-composer">
+      <input id="ws-msg-input" type="text" placeholder="Message to send" ${open ? '' : 'disabled'}
+             onkeydown="if(event.key==='Enter'){sendWsComposerMessage();event.preventDefault();}">
+      <button class="btn-primary" onclick="sendWsComposerMessage()" ${open ? '' : 'disabled'}>Send</button>
+    </div>`;
+
+  wrap.innerHTML = html;
+
+  const transcript = wrap.querySelector('.ws-transcript');
+  if (transcript) transcript.scrollTop = transcript.scrollHeight;
 }
 
 // Show a pass/fail summary badge on the "Tests" response tab.

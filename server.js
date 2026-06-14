@@ -5,6 +5,8 @@
 // data/ directory (collections, environments, history). No dependencies.
 
 const http   = require('http');
+const net    = require('net');
+const tls    = require('tls');
 const fs     = require('fs');
 const path   = require('path');
 const crypto = require('crypto');
@@ -209,6 +211,168 @@ function buildDigestHeader({ username, password }, method, uri, { realm, nonce, 
   if (opaque)    h += `, opaque="${opaque}"`;
   if (algorithm) h += `, algorithm=${algorithm}`;
   return h;
+}
+
+// ─── WebSocket relay (RFC 6455) ─────────────────────────────────────────────────
+// Browsers can't open ws(s):// connections to arbitrary hosts with custom
+// headers (auth, cookies, ...) directly from the page, so Salvo relays them:
+// the page opens a WebSocket to /api/ws-proxy, sends a single JSON "connect"
+// control message ({ url, headers }), and from then on raw frames are
+// forwarded 1:1 between the page and the upstream target. Frames *from* the
+// upstream are wrapped as JSON control messages ({ type: 'open'|'message'|
+// 'close'|'error', ... }) so the page can distinguish them from its own echo.
+
+const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
+
+function wsAcceptKey(key) {
+  return crypto.createHash('sha1').update(key + WS_GUID).digest('base64');
+}
+
+const WS_OP = { CONTINUATION: 0x0, TEXT: 0x1, BINARY: 0x2, CLOSE: 0x8, PING: 0x9, PONG: 0xA };
+
+// Encodes a single, unfragmented WebSocket frame. `masked` must be true for
+// client-to-server frames (Salvo -> upstream) and false for server-to-client
+// frames (Salvo -> browser), per RFC 6455.
+function encodeWsFrame(opcode, payload, masked) {
+  payload = Buffer.isBuffer(payload) ? payload : Buffer.from(payload);
+  const len = payload.length;
+
+  let header;
+  if (len < 126) {
+    header = Buffer.alloc(2);
+    header[1] = len;
+  } else if (len < 65536) {
+    header = Buffer.alloc(4);
+    header[1] = 126;
+    header.writeUInt16BE(len, 2);
+  } else {
+    header = Buffer.alloc(10);
+    header[1] = 127;
+    header.writeBigUInt64BE(BigInt(len), 2);
+  }
+  header[0] = 0x80 | opcode; // FIN=1, no extensions
+
+  if (!masked) return Buffer.concat([header, payload]);
+
+  header[1] |= 0x80;
+  const mask = crypto.randomBytes(4);
+  const body = Buffer.alloc(len);
+  for (let i = 0; i < len; i++) body[i] = payload[i] ^ mask[i % 4];
+  return Buffer.concat([header, mask, body]);
+}
+
+// Incremental frame decoder — feed it raw bytes via push(chunk), get back any
+// complete frames as { fin, opcode, payload }. Buffers a partial trailing
+// frame across calls.
+class WsFrameDecoder {
+  constructor() { this.buf = Buffer.alloc(0); }
+
+  push(chunk) {
+    this.buf = this.buf.length ? Buffer.concat([this.buf, chunk]) : chunk;
+    const frames = [];
+    while (true) {
+      if (this.buf.length < 2) break;
+
+      const b0 = this.buf[0], b1 = this.buf[1];
+      const fin    = (b0 & 0x80) !== 0;
+      const opcode = b0 & 0x0f;
+      const masked = (b1 & 0x80) !== 0;
+      let len = b1 & 0x7f;
+      let offset = 2;
+
+      if (len === 126) {
+        if (this.buf.length < offset + 2) break;
+        len = this.buf.readUInt16BE(offset);
+        offset += 2;
+      } else if (len === 127) {
+        if (this.buf.length < offset + 8) break;
+        len = Number(this.buf.readBigUInt64BE(offset));
+        offset += 8;
+      }
+
+      let maskKey;
+      if (masked) {
+        if (this.buf.length < offset + 4) break;
+        maskKey = this.buf.subarray(offset, offset + 4);
+        offset += 4;
+      }
+
+      if (this.buf.length < offset + len) break;
+
+      let payload = Buffer.from(this.buf.subarray(offset, offset + len));
+      if (masked) for (let i = 0; i < len; i++) payload[i] ^= maskKey[i % 4];
+
+      frames.push({ fin, opcode, payload });
+      this.buf = this.buf.subarray(offset + len);
+    }
+    return frames;
+  }
+}
+
+// Opens a raw TCP/TLS socket to `targetUrl` and performs the client-side
+// WebSocket handshake (RFC 6455 section 4.1). Resolves with the connected
+// socket and any bytes already received past the handshake response.
+function wsConnectUpstream(targetUrl, extraHeaders) {
+  return new Promise((resolve, reject) => {
+    let u;
+    try { u = new URL(targetUrl); } catch (err) { reject(err); return; }
+    if (u.protocol !== 'ws:' && u.protocol !== 'wss:') {
+      reject(new Error(`Unsupported WebSocket URL scheme: ${u.protocol}`));
+      return;
+    }
+
+    const isTls = u.protocol === 'wss:';
+    const port  = u.port || (isTls ? 443 : 80);
+    const key   = crypto.randomBytes(16).toString('base64');
+
+    const connectOpts = { host: u.hostname, port: Number(port) };
+    const socket = isTls
+      ? tls.connect({ ...connectOpts, servername: u.hostname })
+      : net.connect(connectOpts);
+
+    socket.once('connect', () => {
+      const lines = [
+        `GET ${u.pathname || '/'}${u.search} HTTP/1.1`,
+        `Host: ${u.host}`,
+        'Upgrade: websocket',
+        'Connection: Upgrade',
+        `Sec-WebSocket-Key: ${key}`,
+        'Sec-WebSocket-Version: 13',
+      ];
+      for (const [k, v] of Object.entries(extraHeaders || {})) lines.push(`${k}: ${v}`);
+      socket.write(lines.join('\r\n') + '\r\n\r\n');
+    });
+
+    let buf = Buffer.alloc(0);
+    const onData = chunk => {
+      buf = Buffer.concat([buf, chunk]);
+      const idx = buf.indexOf('\r\n\r\n');
+      if (idx === -1) return;
+
+      socket.removeListener('data', onData);
+      const head = buf.subarray(0, idx).toString('latin1');
+      const rest = buf.subarray(idx + 4);
+
+      const statusLine = head.split('\r\n')[0];
+      if (!/^HTTP\/1\.\d 101\b/.test(statusLine)) {
+        socket.destroy();
+        reject(new Error(`Upstream WebSocket handshake failed: ${statusLine}`));
+        return;
+      }
+
+      const acceptMatch = head.match(/^Sec-WebSocket-Accept:\s*(.+)$/im);
+      if (!acceptMatch || acceptMatch[1].trim() !== wsAcceptKey(key)) {
+        socket.destroy();
+        reject(new Error('Upstream WebSocket handshake failed: invalid Sec-WebSocket-Accept'));
+        return;
+      }
+
+      resolve({ socket, rest });
+    };
+
+    socket.on('data', onData);
+    socket.once('error', reject);
+  });
 }
 
 // Sorts by the `order` field saveData() stamps onto each request file
@@ -781,6 +945,137 @@ const server = http.createServer((req, res) => {
   });
 });
 
+// ─── WebSocket relay endpoint (/api/ws-proxy) ──────────────────────────────────
+// See the "WebSocket relay" section above for the wire protocol.
+server.on('upgrade', (req, socket, head) => {
+  const u = new URL(req.url, 'http://localhost');
+  if (u.pathname !== '/api/ws-proxy' || (req.headers.upgrade || '').toLowerCase() !== 'websocket') {
+    socket.destroy();
+    return;
+  }
+
+  const key = req.headers['sec-websocket-key'];
+  if (!key) { socket.destroy(); return; }
+
+  socket.write(
+    'HTTP/1.1 101 Switching Protocols\r\n' +
+    'Upgrade: websocket\r\n' +
+    'Connection: Upgrade\r\n' +
+    `Sec-WebSocket-Accept: ${wsAcceptKey(key)}\r\n\r\n`
+  );
+
+  const toBrowser = (type, extra) => socket.write(encodeWsFrame(WS_OP.TEXT, JSON.stringify({ type, ...extra }), false));
+
+  // Ends the browser-facing connection cleanly: a WS server must answer a
+  // Close frame (or initiate one) before closing the TCP connection, or the
+  // browser sees an abnormal (1006) closure and the socket can linger.
+  const closeBrowser = payload => { socket.write(encodeWsFrame(WS_OP.CLOSE, payload || Buffer.alloc(0), false)); socket.end(); };
+
+  let upstream   = null;
+  let connecting = false;
+
+  // Returns a per-direction assembler that accumulates fragmented messages
+  // (CONTINUATION frames) and calls onComplete(opcode, payload) once fin=true.
+  function makeFragmentAssembler() {
+    let pending = null; // { opcode, chunks }
+    return (frame, onComplete) => {
+      if (frame.opcode === WS_OP.CONTINUATION) {
+        if (!pending) return;
+        pending.chunks.push(frame.payload);
+      } else {
+        pending = { opcode: frame.opcode, chunks: [frame.payload] };
+      }
+      if (!frame.fin) return;
+      const { opcode, chunks } = pending;
+      pending = null;
+      onComplete(opcode, Buffer.concat(chunks));
+    };
+  }
+
+  const browserAssemble  = makeFragmentAssembler();
+  const upstreamAssemble = makeFragmentAssembler();
+
+  const browserDecoder = new WsFrameDecoder();
+  let upstreamDecoder  = null;
+
+  function handleUpstreamData(chunk) {
+    for (const frame of upstreamDecoder.push(chunk)) {
+      if (frame.opcode === WS_OP.PING) { upstream.write(encodeWsFrame(WS_OP.PONG, frame.payload, true)); continue; }
+      if (frame.opcode === WS_OP.PONG) continue;
+      if (frame.opcode === WS_OP.CLOSE) {
+        upstream.write(encodeWsFrame(WS_OP.CLOSE, frame.payload, true));
+        upstream.end();
+        toBrowser('close');
+        closeBrowser();
+        return;
+      }
+
+      upstreamAssemble(frame, (opcode, payload) => {
+        toBrowser('message', {
+          binary: opcode === WS_OP.BINARY,
+          data: opcode === WS_OP.BINARY ? payload.toString('base64') : payload.toString('utf8'),
+        });
+      });
+    }
+  }
+
+  function handleBrowserFrame(frame) {
+    if (frame.opcode === WS_OP.PING) { socket.write(encodeWsFrame(WS_OP.PONG, frame.payload, false)); return; }
+    if (frame.opcode === WS_OP.PONG) return;
+    if (frame.opcode === WS_OP.CLOSE) {
+      socket.write(encodeWsFrame(WS_OP.CLOSE, frame.payload, false));
+      socket.end();
+      if (upstream) {
+        upstream.write(encodeWsFrame(WS_OP.CLOSE, Buffer.alloc(0), true));
+        upstream.end();
+      }
+      return;
+    }
+
+    if (!upstream) {
+      if (connecting) return;
+      browserAssemble(frame, (opcode, payload) => {
+        if (opcode !== WS_OP.TEXT) { toBrowser('error', { message: 'First message must be a JSON connect request' }); closeBrowser(); return; }
+
+        let url, headers;
+        try { ({ url, headers } = JSON.parse(payload.toString('utf8'))); }
+        catch { toBrowser('error', { message: 'Invalid connect message' }); closeBrowser(); return; }
+
+        connecting = true;
+        wsConnectUpstream(url, headers).then(({ socket: upSock, rest }) => {
+          upstream        = upSock;
+          upstreamDecoder = new WsFrameDecoder();
+          connecting      = false;
+          toBrowser('open');
+          if (rest.length) handleUpstreamData(rest);
+          upSock.on('data', handleUpstreamData);
+          upSock.on('close', () => { toBrowser('close'); closeBrowser(); });
+          upSock.on('error', err => { toBrowser('error', { message: err.message }); closeBrowser(); });
+        }).catch(err => {
+          connecting = false;
+          toBrowser('error', { message: err.message });
+          closeBrowser();
+        });
+      });
+      return;
+    }
+
+    browserAssemble(frame, (opcode, payload) => {
+      upstream.write(encodeWsFrame(opcode, payload, true));
+    });
+  }
+
+  socket.on('data', chunk => {
+    for (const frame of browserDecoder.push(chunk)) handleBrowserFrame(frame);
+  });
+  socket.on('close', () => upstream?.end());
+  socket.on('error', () => upstream?.end());
+
+  if (head && head.length) {
+    for (const frame of browserDecoder.push(head)) handleBrowserFrame(frame);
+  }
+});
+
 // ─── LAN-accessible addresses, for the startup log ─────────────────────────────
 function lanAddresses() {
   const addrs = [];
@@ -806,4 +1101,5 @@ module.exports = {
   buildFetchBody, attachJarCookies,
   findMockMatch, createMockServer, startMockServer, stopMockServer, mockStatus,
   getCliArg,
+  wsAcceptKey, encodeWsFrame, WsFrameDecoder, wsConnectUpstream, WS_OP,
 };

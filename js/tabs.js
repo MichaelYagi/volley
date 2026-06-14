@@ -43,6 +43,7 @@ function closeTab(tabId, event) {
   const idx = state.tabs.findIndex(t => t.id === tabId);
   if (idx === -1) return;
 
+  disconnectWs(state.tabs[idx]);
   syncTabIntoCols(state.tabs[idx]);
   state.tabs.splice(idx, 1);
 

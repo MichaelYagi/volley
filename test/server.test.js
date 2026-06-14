@@ -14,7 +14,7 @@ const path = require('path');
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'salvo-test-'));
 process.env.SALVO_DATA_DIR = DATA_DIR;
 
-const { sanitizeName, uniqueName, buildColsFromFiles, loadData, saveData, normalizeEnvs, parseDigestChallenge, buildDigestHeader, parseSetCookie, cookieMatches, updateJarCookie, loadCookies, saveCookies, getCliArg, findMockMatch, startMockServer, stopMockServer, mockStatus } = require('../server.js');
+const { sanitizeName, uniqueName, buildColsFromFiles, loadData, saveData, normalizeEnvs, parseDigestChallenge, buildDigestHeader, parseSetCookie, cookieMatches, updateJarCookie, loadCookies, saveCookies, getCliArg, findMockMatch, startMockServer, stopMockServer, mockStatus, wsAcceptKey, encodeWsFrame, WsFrameDecoder, WS_OP } = require('../server.js');
 
 function resetData() {
   fs.rmSync(DATA_DIR, { recursive: true, force: true });
@@ -361,6 +361,43 @@ test('startMockServer/stopMockServer/mockStatus round trip and serve a route', a
 
   await stopMockServer();
   assert.deepEqual(mockStatus(), { running: false, port: null, routes: 0 });
+});
+
+// ─── WebSocket relay primitives ──────────────────────────────────────────────
+
+test('wsAcceptKey computes the RFC 6455 example Sec-WebSocket-Accept value', () => {
+  // From RFC 6455 section 1.3.
+  assert.strictEqual(wsAcceptKey('dGhlIHNhbXBsZSBub25jZQ=='), 's3pPLMBiTxaQ9kYGzzhZRbK+xOo=');
+});
+
+test('encodeWsFrame/WsFrameDecoder round trip a masked and an unmasked text frame', () => {
+  const decoder = new WsFrameDecoder();
+
+  const masked = encodeWsFrame(WS_OP.TEXT, 'hello', true);
+  let frames = decoder.push(masked);
+  assert.strictEqual(frames.length, 1);
+  assert.strictEqual(frames[0].opcode, WS_OP.TEXT);
+  assert.strictEqual(frames[0].fin, true);
+  assert.strictEqual(frames[0].payload.toString('utf8'), 'hello');
+
+  const unmasked = encodeWsFrame(WS_OP.BINARY, Buffer.from([1, 2, 3]), false);
+  frames = decoder.push(unmasked);
+  assert.strictEqual(frames.length, 1);
+  assert.strictEqual(frames[0].opcode, WS_OP.BINARY);
+  assert.deepStrictEqual([...frames[0].payload], [1, 2, 3]);
+});
+
+test('WsFrameDecoder handles a frame split across multiple chunks and a payload >= 65536 bytes', () => {
+  const decoder = new WsFrameDecoder();
+  const payload = Buffer.alloc(70000, 0x41); // 'A' * 70000 -> 64-bit length field
+  const frame   = encodeWsFrame(WS_OP.BINARY, payload, false);
+
+  const mid = 10;
+  assert.deepStrictEqual(decoder.push(frame.subarray(0, mid)), []);
+  const frames = decoder.push(frame.subarray(mid));
+  assert.strictEqual(frames.length, 1);
+  assert.strictEqual(frames[0].payload.length, 70000);
+  assert.ok(frames[0].payload.every(b => b === 0x41));
 });
 
 test.after(() => {

@@ -4,6 +4,8 @@ async function sendRequest() {
   const tab = activeTab();
   if (!tab || tab.loading) return;
 
+  if (isWsUrl(tab.req.url)) return connectWs(tab);
+
   tab.abortCtrl = new AbortController();
   tab.loading   = true;
   tab.resp      = null;
@@ -14,8 +16,6 @@ async function sendRequest() {
     document.querySelectorAll('[data-rtab]').forEach(t =>
       t.classList.toggle('active', t.dataset.rtab === 'body')
     );
-    document.getElementById('send-btn').textContent = 'Cancel';
-    document.getElementById('send-btn').onclick     = cancelReq;
     document.getElementById('resp-body-wrap').innerHTML =
       `<div style="display:flex;align-items:center;gap:8px;color:var(--text-muted)">
          <div class="spinner"><span></span><span></span><span></span></div> Sending…
@@ -25,6 +25,7 @@ async function sendRequest() {
     document.getElementById('resp-size').style.display      = 'none';
     document.getElementById('copy-resp-btn').style.display  = 'none';
     document.getElementById('resp-tests-badge').style.display = 'none';
+    updateSendBtn();
   }
 
   const start = Date.now();
@@ -143,8 +144,7 @@ async function sendRequest() {
   } finally {
     tab.loading = false;
     if (activeTab() === tab) {
-      document.getElementById('send-btn').textContent = 'Send';
-      document.getElementById('send-btn').onclick     = sendRequest;
+      updateSendBtn();
       renderRespPanel();
       if (tab.reqTab === 'headers') renderReqPanel();
     }
@@ -161,7 +161,7 @@ async function buildRequestArgs(req) {
   // URL + path variables + query params
   let raw = interp(req.url);
   raw = substitutePathVars(raw, req.pathVars);
-  if (!raw.match(/^https?:\/\//i)) raw = 'https://' + raw;
+  if (!raw.match(/^(https?|wss?):\/\//i)) raw = 'https://' + raw;
   const urlObj = new URL(raw);
 
   req.params

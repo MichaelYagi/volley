@@ -110,7 +110,7 @@
           </select>
           <input id="url-input" type="text"
                  placeholder="https://api.example.com/endpoint {{var}}"
-                 oninput="activeTab().req.url=this.value;syncParamsFromUrl();syncPathVarsFromUrl();scheduleAutoSave();updateTabBadges();renderReqPanel();showVarSuggest(this)"
+                 oninput="activeTab().req.url=this.value;syncParamsFromUrl();syncPathVarsFromUrl();scheduleAutoSave();updateTabBadges();renderReqPanel();showVarSuggest(this);updateSendBtn()"
                  onkeydown="varSuggestKeydown(this,event) || (event.key==='Enter' && sendRequest())"
                  onblur="varSuggestBlur()">
           <button id="send-btn" class="btn-primary" onclick="sendRequest()">Send</button>
@@ -330,6 +330,7 @@ SOFTWARE.</pre>
 <script src="js/request.js"></script>     <!-- request editor panels             -->
 <script src="js/response.js"></script>    <!-- response panel & JSON tree        -->
 <script src="js/send.js"></script>        <!-- fetch execution                   -->
+<script src="js/websocket.js"></script>  <!-- WebSocket relay client            -->
 <script src="js/collections.js"></script> <!-- collection / folder / req CRUD    -->
 <script src="js/modals.js"></script>      <!-- environment modal                 -->
 <script src="js/runner.js"></script>      <!-- collection runner                 -->

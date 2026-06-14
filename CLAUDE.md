@@ -52,6 +52,7 @@ All JS files share the **global browser scope** and are loaded as plain `<script
 | `js/request.js` | `showReqEditor()`, `showEmptyState()`, `syncReqEditor()`, `renderReqPanel()`, `switchReqTab()`, `updateTabBadges()`, `kvEditorHTML()`, `kvToggle/Set/Del/Add()`, `authHTML()`, `authTypeChange/Set()`, `bodyHTML()`, `bodyTypeChange/Set()`, `onMethodChange()`, `onReqNameChange()` |
 | `js/response.js` | `renderRespPanel()`, `switchRespTab()`, `copyResponse()`, `buildJsonTree()` |
 | `js/send.js` | `sendRequest()`, `cancelReq()`, `buildRequestArgs()`, `parseResponse()`, `ensureOAuthToken()`/`fetchOAuthToken()`/`manualFetchOAuthToken()`, `buildJwt()` |
+| `js/websocket.js` | `isWsUrl()`, `connectWs()`, `disconnectWs()`, `sendWsMessage()`, `sendWsComposerMessage()`, `updateSendBtn()` |
 | `js/collections.js` | `findReq()`, `selectReq()`, `addCollection/Folder/Req()`, `deleteCol/Req()`, `dupReq()`, `renameCol()`, `exportCol()`, `importFile()`, `parsePostman()` |
 | `js/modals.js` | `openEnvModal()`, `closeEnvModal()`, `renderEnvSelect()`, `renderEnvModal()`, `renderEnvList()`, `renderEnvDetail()` (vars edited via `kvEditorHTML(env.vars, 'envVars')`), `envSelect/Rename/Use/Delete()`, `envQuickSwitch()`, `addEnv()`, `getSelEnv()` |
 | `js/app.js` | `init()`, `loadData()`, `saveAll()`, `setupResizer()`, `toggleHistPanel()`, `renderHistPanel()`, `replayHistory()`, `clearHistory()` |
@@ -65,7 +66,7 @@ All JS files share the **global browser scope** and are loaded as plain `<script
 | `css/base.css` | Reset, `#app`/`#workspace`/`#main` layout, `#topbar`, form controls, buttons (`.btn-primary`, `.btn-danger`), `.tabbar`/`.tab`/`.tab-badge`, `.panel`, `.spinner` |
 | `css/sidebar.css` | `#sidebar`, `#resizer`, `.col-header`, `.col-arrow`, `.col-name`, `.col-body`, `.folder-header`, `.req-row`, `.req-method`, `.req-name`, `.ctx-menu`, `.ctx-item` |
 | `css/request.css` | `#empty-state`, `#url-bar`, `#req-name-input`, `.kv-grid`, `.kv-grid-notes`, `.kv-note`, `.kv-del`, `.kv-add`, `.body-types`, `#body-raw-area`, `.auth-row` |
-| `css/response.css` | `#resp-section`, `#resp-header`, `.resp-label`, `.status-badge`, `#resp-body-wrap`, JSON tree classes (`.jt-*`), `#hist-panel`, `.hist-item` |
+| `css/response.css` | `#resp-section`, `#resp-header`, `.resp-label`, `.status-badge`, `#resp-body-wrap`, JSON tree classes (`.jt-*`), SSE event log (`.sse-event-*`), WebSocket transcript (`.ws-*`), `#hist-panel`, `.hist-item` |
 | `css/modals.css` | `.modal-bg`, `.modal`, `.modal-footer`, `.env-layout`, `.env-item`, `.env-kv-grid`, `.notif` (toasts) |
 
 ## State shape

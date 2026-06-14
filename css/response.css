@@ -101,6 +101,21 @@
 .sse-event-time  { color: var(--text-muted); margin-left: auto; }
 .sse-event-data  { margin: 0; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
 
+/* ─── WebSocket transcript ───────────────────────────────────────────────────── */
+.ws-transcript   { display: flex; flex-direction: column; }
+.ws-msg          { padding: 6px 0; border-bottom: 1px solid var(--bg-input); }
+.ws-msg:last-child { border-bottom: none; }
+.ws-msg-meta     { display: flex; gap: 8px; align-items: center; margin-bottom: 2px; font-size: 11px; }
+.ws-msg-dir      { font-weight: 700; }
+.ws-msg-sent .ws-msg-dir     { color: var(--accent); }
+.ws-msg-received .ws-msg-dir { color: var(--json-key); }
+.ws-msg-time     { color: var(--text-muted); margin-left: auto; font-size: 11px; }
+.ws-msg-data     { margin: 0; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+.ws-msg-system   { display: flex; gap: 8px; align-items: center; padding: 4px 0; color: var(--text-muted); font-size: 11px; font-style: italic; }
+
+.ws-composer { display: flex; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--bg-input); }
+.ws-composer input { flex: 1; font-family: monospace; font-size: 12px; padding: 5px 10px; }
+
 #hist-panel { display: flex; flex-direction: column; height: 100%; }
 
 #hist-panel .hist-header {

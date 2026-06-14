@@ -13,7 +13,7 @@ const http = require('http');
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'salvo-test-http-'));
 process.env.SALVO_DATA_DIR = DATA_DIR;
 
-const { server, parseDigestChallenge } = require('../server.js');
+const { server, parseDigestChallenge, wsAcceptKey, encodeWsFrame, WsFrameDecoder, WS_OP } = require('../server.js');
 
 let base;
 
@@ -571,6 +571,159 @@ test('POST /api/proxy-stream stores Set-Cookie responses and resends them on lat
       body: JSON.stringify({}),
     });
   } finally {
+    upstream.close();
+  }
+});
+
+// ─── /api/ws-proxy (WebSocket relay) ────────────────────────────────────────
+
+// Minimal WS server built from server.js's own frame primitives — echoes
+// back any text frame it receives, prefixed with "echo:".
+function createEchoWsServer() {
+  return http.createServer().on('upgrade', (req, socket) => {
+    const key = req.headers['sec-websocket-key'];
+    socket.write(
+      'HTTP/1.1 101 Switching Protocols\r\n' +
+      'Upgrade: websocket\r\n' +
+      'Connection: Upgrade\r\n' +
+      `Sec-WebSocket-Accept: ${wsAcceptKey(key)}\r\n\r\n`
+    );
+    const decoder = new WsFrameDecoder();
+    socket.on('data', chunk => {
+      for (const frame of decoder.push(chunk)) {
+        if (frame.opcode === WS_OP.CLOSE) { socket.end(); return; }
+        if (frame.opcode === WS_OP.TEXT) {
+          socket.write(encodeWsFrame(WS_OP.TEXT, `echo:${frame.payload.toString('utf8')}`, false));
+        }
+      }
+    });
+  });
+}
+
+function wsProxyUrl() {
+  return `ws://127.0.0.1:${server.address().port}/api/ws-proxy`;
+}
+
+// Queues incoming messages from `ws` so nextMessage() can be awaited
+// sequentially without missing messages that arrive back-to-back before the
+// next nextMessage() call registers its listener.
+function queueMessages(ws) {
+  const queue = [];
+  const waiters = [];
+  ws.addEventListener('message', ev => {
+    const msg = JSON.parse(ev.data);
+    const waiter = waiters.shift();
+    if (waiter) waiter.resolve(msg);
+    else queue.push(msg);
+  });
+  ws.addEventListener('error', err => {
+    const waiter = waiters.shift();
+    if (waiter) waiter.reject(err);
+  });
+  return () => {
+    if (queue.length) return Promise.resolve(queue.shift());
+    return new Promise((resolve, reject) => waiters.push({ resolve, reject }));
+  };
+}
+
+test('WS proxy relays messages between the browser and an upstream WebSocket server', async () => {
+  const upstream = createEchoWsServer();
+  await new Promise(resolve => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamUrl = `ws://127.0.0.1:${upstream.address().port}/`;
+
+  const ws = new WebSocket(wsProxyUrl());
+  try {
+    await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+    const nextMessage = queueMessages(ws);
+    ws.send(JSON.stringify({ url: upstreamUrl, headers: {} }));
+
+    const opened = await nextMessage();
+    assert.strictEqual(opened.type, 'open');
+
+    ws.send('hello');
+    const echoed = await nextMessage();
+    assert.deepStrictEqual(echoed, { type: 'message', binary: false, data: 'echo:hello' });
+  } finally {
+    ws.close();
+    upstream.close();
+  }
+});
+
+test('WS proxy forwards custom headers to the upstream target', async () => {
+  const upstream = http.createServer().on('upgrade', (req, socket) => {
+    const key = req.headers['sec-websocket-key'];
+    socket.write(
+      'HTTP/1.1 101 Switching Protocols\r\n' +
+      'Upgrade: websocket\r\n' +
+      'Connection: Upgrade\r\n' +
+      `Sec-WebSocket-Accept: ${wsAcceptKey(key)}\r\n\r\n`
+    );
+    socket.write(encodeWsFrame(WS_OP.TEXT, JSON.stringify({ authorization: req.headers['authorization'] || null }), false));
+    socket.resume();
+    socket.on('end', () => socket.end());
+  });
+  await new Promise(resolve => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamUrl = `ws://127.0.0.1:${upstream.address().port}/`;
+
+  const ws = new WebSocket(wsProxyUrl());
+  try {
+    await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+    const nextMessage = queueMessages(ws);
+    ws.send(JSON.stringify({ url: upstreamUrl, headers: { Authorization: 'Bearer abc123' } }));
+
+    const opened = await nextMessage();
+    assert.strictEqual(opened.type, 'open');
+
+    const echoed = await nextMessage();
+    assert.deepStrictEqual(JSON.parse(echoed.data), { authorization: 'Bearer abc123' });
+  } finally {
+    ws.close();
+    upstream.close();
+  }
+});
+
+test('WS proxy reports an error when the upstream is unreachable', async () => {
+  const ws = new WebSocket(wsProxyUrl());
+  try {
+    await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+    const nextMessage = queueMessages(ws);
+    ws.send(JSON.stringify({ url: 'ws://127.0.0.1:1/', headers: {} }));
+
+    const msg = await nextMessage();
+    assert.strictEqual(msg.type, 'error');
+    assert.ok(msg.message);
+  } finally {
+    ws.close();
+  }
+});
+
+test('WS proxy notifies the browser when the upstream closes the connection', async () => {
+  const upstream = http.createServer().on('upgrade', (req, socket) => {
+    const key = req.headers['sec-websocket-key'];
+    socket.write(
+      'HTTP/1.1 101 Switching Protocols\r\n' +
+      'Upgrade: websocket\r\n' +
+      'Connection: Upgrade\r\n' +
+      `Sec-WebSocket-Accept: ${wsAcceptKey(key)}\r\n\r\n`
+    );
+    socket.end();
+  });
+  await new Promise(resolve => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamUrl = `ws://127.0.0.1:${upstream.address().port}/`;
+
+  const ws = new WebSocket(wsProxyUrl());
+  try {
+    await new Promise((resolve, reject) => { ws.onopen = resolve; ws.onerror = reject; });
+    const nextMessage = queueMessages(ws);
+    ws.send(JSON.stringify({ url: upstreamUrl, headers: {} }));
+
+    const opened = await nextMessage();
+    assert.strictEqual(opened.type, 'open');
+
+    const closed = await nextMessage();
+    assert.strictEqual(closed.type, 'close');
+  } finally {
+    ws.close();
     upstream.close();
   }
 });

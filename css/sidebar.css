@@ -138,7 +138,7 @@
   user-select: none;
   border-left: 2px solid transparent;
 }
-.req-row:hover    { background: var(--bg-elevated); }
+.req-row:hover, .req-row.ctx-open { background: var(--bg-elevated); }
 .req-row.active   { background: var(--bg-elevated); border-left-color: var(--accent); }
 .req-row.selected { background: var(--selected-bg); }
 
@@ -161,7 +161,8 @@
   text-align: center;
   user-select: none;
 }
-.req-row:not(.no-drag):hover .req-drag-handle { visibility: visible; }
+.req-row:not(.no-drag):hover .req-drag-handle,
+.req-row.ctx-open .req-drag-handle { visibility: visible; }
 
 .req-menu-btn {
   visibility: hidden;

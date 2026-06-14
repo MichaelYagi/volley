@@ -1256,8 +1256,11 @@ function addComment() {
   renderReqPanel();
 }
 
-function deleteComment(id) {
+async function deleteComment(id) {
   const req = activeTab().req;
+  const comment = req.comments.find(c => c.id === id);
+  const preview = comment?.text.length > 60 ? comment.text.slice(0, 60) + '…' : comment?.text;
+  if (!await confirmDialog(`Delete comment "${preview}"?`, { okLabel: 'Delete', danger: true })) return;
   req.comments = req.comments.filter(c => c.id !== id);
   scheduleAutoSave();
   updateTabBadges();
@@ -1303,8 +1306,10 @@ function viewExample(id) {
   notify(`Viewing example "${ex.name}"`, 'info');
 }
 
-function deleteExample(id) {
+async function deleteExample(id) {
   const req = activeTab().req;
+  const example = req.examples.find(e => e.id === id);
+  if (!await confirmDialog(`Delete example "${example?.name}"?`, { okLabel: 'Delete', danger: true })) return;
   req.examples = req.examples.filter(e => e.id !== id);
   scheduleAutoSave();
   updateTabBadges();

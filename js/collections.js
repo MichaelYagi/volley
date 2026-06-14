@@ -53,7 +53,8 @@ async function renameCol(id) {
 }
 
 async function deleteCol(id) {
-  if (!await confirmDialog('Delete this collection?', { okLabel: 'Delete', danger: true })) return;
+  const col = state.cols.find(c => c.id === id);
+  if (!await confirmDialog(`Delete collection "${col?.name}"?`, { okLabel: 'Delete', danger: true })) return;
   state.cols = state.cols.filter(c => c.id !== id);
   renderSidebar();
   scheduleDiskSave();
@@ -260,7 +261,10 @@ function moveReqs(ids, targetType, targetId) {
   scheduleDiskSave();
 }
 
-function deleteReqs(ids) {
+async function deleteReqs(ids) {
+  const label = ids.length === 1 ? `"${findReq(ids[0])?.name}"` : `these ${ids.length} requests`;
+  if (!await confirmDialog(`Delete ${label}?`, { okLabel: 'Delete', danger: true })) return;
+
   const idSet = new Set(ids);
   state.cols = state.cols.map(c => ({
     ...c,

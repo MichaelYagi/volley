@@ -299,7 +299,8 @@ SOFTWARE.</pre>
 </div>
 
 <!-- ── Generic Confirm / Prompt Dialog ───────────────────────────────────── -->
-<div id="dialog-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)dialogCancel()">
+<div id="dialog-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)dialogCancel()"
+     onkeydown="if(event.key==='Escape')dialogCancel(); else if(event.key==='Enter')dialogConfirm()">
   <div class="modal dialog-modal" onclick="event.stopPropagation()">
     <h3 id="dialog-title" style="display:none"></h3>
     <p id="dialog-message" style="display:none"></p>

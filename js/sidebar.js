@@ -192,6 +192,7 @@ function folderHTML(colId, folder) {
 function reqRowHTML(r, indent, draggable = true) {
   const active   = activeTab()?.reqId === r.id;
   const selected = state.selectedReqIds.has(r.id);
+  const ctxOpen  = state.ctxOpenReqId === r.id;
   const color    = MC[r.method] || 'var(--text)';
   const noDrag   = !draggable || state.selectedReqIds.size > 0;
 
@@ -202,7 +203,7 @@ function reqRowHTML(r, indent, draggable = true) {
     `ondragover="onReqRowDragOver(event,'${r.id}')" ondragleave="onDragLeave(event)" ondrop="onReqRowDrop(event,'${r.id}')"`;
 
   return `
-    <div class="req-row ${active ? 'active' : ''} ${selected ? 'selected' : ''} ${noDrag ? 'no-drag' : ''}" style="padding-left:${indent + 8}px;position:relative"
+    <div class="req-row ${active ? 'active' : ''} ${selected ? 'selected' : ''} ${noDrag ? 'no-drag' : ''} ${ctxOpen ? 'ctx-open' : ''}" style="padding-left:${indent + 8}px;position:relative"
         ${dropAttrs}
         onclick="reqClick(event,'${r.id}')" oncontextmenu="reqCtx(event,'${r.id}')">
       <span class="req-drag-handle" ${handleAttrs}>&#8942;&#8942;</span>
@@ -410,13 +411,15 @@ function reqCtx(event, reqId) {
   event.preventDefault();
   event.stopPropagation();
 
-  document.querySelectorAll('.req-row.ctx-open').forEach(el => el.classList.remove('ctx-open'));
-  event.currentTarget.closest('.req-row')?.classList.add('ctx-open');
+  state.ctxOpenReqId = reqId;
 
   if (!state.selectedReqIds.has(reqId)) {
     state.selectedReqIds = new Set();
     state.lastSelReqId   = reqId;
     renderSidebar();
+  } else {
+    document.querySelectorAll('.req-row.ctx-open').forEach(el => el.classList.remove('ctx-open'));
+    event.currentTarget.closest('.req-row')?.classList.add('ctx-open');
   }
 
   const multi = state.selectedReqIds.size > 1;
@@ -466,5 +469,6 @@ function showCtxMenu(x, y, items) {
 
 function hideCtxMenu() {
   document.getElementById('ctx-menu').style.display = 'none';
+  state.ctxOpenReqId = null;
   document.querySelectorAll('.req-row.ctx-open').forEach(el => el.classList.remove('ctx-open'));
 }

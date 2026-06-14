@@ -44,6 +44,7 @@ function loadSandbox() {
     let _activeTab = null;
     function activeTab() { return _activeTab; }
     function scheduleDiskSave() {}
+    function confirmDialog() { return Promise.resolve(true); }
     globalThis.state = state;
     globalThis.setActiveTab = t => { _activeTab = t; };
     globalThis.setCookieJar = j => { _cookieJar = j; };
@@ -359,7 +360,7 @@ test('mockHTML renders the enable toggle, matched route, and mockSet updates req
 
 // ─── Docs & Comments ──────────────────────────────────────────────────────────
 
-test('docsHTML renders the description textarea and comments, addComment/deleteComment update req.comments', () => {
+test('docsHTML renders the description textarea and comments, addComment/deleteComment update req.comments', async () => {
   const sandbox = loadSandbox();
   sandbox.localStorage = { getItem: () => '', setItem: () => {} };
   const req = makeReq({ description: 'Fetches the ping endpoint' });
@@ -384,13 +385,13 @@ test('docsHTML renders the description textarea and comments, addComment/deleteC
   assert.match(html, /Alice/);
   assert.match(html, /Looks good/);
 
-  sandbox.deleteComment(req.comments[0].id);
+  await sandbox.deleteComment(req.comments[0].id);
   assert.strictEqual(req.comments.length, 0);
 });
 
 // ─── Saved Response Examples ─────────────────────────────────────────────────
 
-test('examplesHTML lists saved examples and deleteExample removes one', () => {
+test('examplesHTML lists saved examples and deleteExample removes one', async () => {
   const sandbox = loadSandbox();
   const req = makeReq({ examples: [
     { id: 'ex1', name: 'Success', status: 200, statusText: 'OK', headers: {}, body: '{}', bodyType: 'json', createdAt: Date.now() },
@@ -402,7 +403,7 @@ test('examplesHTML lists saved examples and deleteExample removes one', () => {
   assert.match(html, /Success/);
   assert.match(html, /200 OK/);
 
-  sandbox.deleteExample('ex1');
+  await sandbox.deleteExample('ex1');
   assert.strictEqual(req.examples.length, 0);
 
   html = sandbox.examplesHTML(req);

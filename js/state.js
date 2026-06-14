@@ -26,6 +26,7 @@ const state = {
   envSelId:        'default',
   selectedReqIds:  new Set(),
   lastSelReqId:    null,
+  ctxOpenReqId:    null,   // id of the request row whose context menu is open, if any
   bulkEdit:        new Set(), // kv editor keys ('params'|'headers'|'formData'|'envVars'|'globalVars') currently in bulk-edit mode
   runner:          null,      // Collection Runner progress/results — see js/runner.js
 };

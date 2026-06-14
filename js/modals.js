@@ -179,7 +179,7 @@ function envUse() {
 }
 
 async function envDelete() {
-  if (!await confirmDialog('Delete this environment?', { okLabel: 'Delete', danger: true })) return;
+  if (!await confirmDialog(`Delete environment "${getSelEnv()?.name}"?`, { okLabel: 'Delete', danger: true })) return;
   state.envs     = state.envs.filter(e => e.id !== state.envSelId);
   state.envSelId = 'default';
   renderEnvModal();
@@ -251,6 +251,7 @@ async function renderCookiesModal() {
 async function deleteCookie(i) {
   const c = _cookieJar[i];
   if (!c) return;
+  if (!await confirmDialog(`Delete cookie "${c.name}"?`, { okLabel: 'Delete', danger: true })) return;
   await fetch('/api/cookies', {
     method:  'DELETE',
     headers: { 'Content-Type': 'application/json' },

@@ -243,7 +243,8 @@ function replayHistory(i) {
   showReqEditor();
 }
 
-function clearHistory() {
+async function clearHistory() {
+  if (!await confirmDialog('Clear all request history?', { okLabel: 'Clear', danger: true })) return;
   state.hist = [];
   renderHistPanel();
   scheduleDiskSave();

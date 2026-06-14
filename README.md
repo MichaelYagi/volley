@@ -43,6 +43,10 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
   - [Saving response values as variables](#saving-response-values-as-variables)
 - [Bulk Edit](#bulk-edit)
 - [Auth types](#auth-types)
+- [Realtime & streaming protocols](#realtime--streaming-protocols)
+  - [Server-Sent Events (SSE)](#server-sent-events-sse)
+  - [WebSocket](#websocket)
+  - [MCP (Model Context Protocol)](#mcp-model-context-protocol)
 - [Pre-request & Test Scripts](#pre-request--test-scripts)
   - [`pm` API](#pm-api)
 - [Collection Runner](#collection-runner)
@@ -63,6 +67,9 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 - **Drag-and-drop organization** — reorder requests and folders within a collection, move a request into a folder, or reorder collections and folders themselves by dragging their rows.
 - **Multi-tab editing** — open several requests at once in browser-style tabs above the editor; each tab keeps its own edits, response, and active sub-tab.
 - **Full request editing** — method, URL, query params, headers, auth, and body (raw JSON/XML/text, form-data with file uploads, x-www-form-urlencoded, raw binary, GraphQL)
+- **Server-Sent Events (SSE)** — any response with `Content-Type: text/event-stream` switches the response panel to a live-updating event log instead of a single body. See [Server-Sent Events](#server-sent-events-sse).
+- **WebSocket** — open a `ws://`/`wss://` URL to get a Connect/Disconnect button and a message transcript + composer instead of the usual send/response flow. See [WebSocket](#websocket).
+- **MCP (Model Context Protocol)** — talk to an MCP server over Streamable HTTP (`mcp+http://`/`mcp+https://`) or stdio (`mcp+stdio://<command line>`), with the `initialize` handshake handled automatically and a JSON-RPC transcript + composer. See [MCP](#mcp-model-context-protocol).
 - **URL ↔ Params sync** — editing the URL's query string updates the Params table and vice versa, like Postman.
 - **Path variables** — `:name` segments in the URL (e.g. `/users/:id`) show up as an editable "Path Variables" table on the Params tab; the names come from the URL, you fill in the values, and they're substituted in when the request is sent (and in the cURL preview).
 - **Auto-generated headers preview** — the Headers tab shows a read-only "Auto-generated" section previewing the `Authorization`/API key header from the Auth tab, the `Content-Type` the Body tab will add, and any `Cookie` header the cookie jar will attach for this request's domain. A manual header that will be silently overridden by the Auth tab (e.g. a hand-typed `Authorization`) is highlighted with a warning.
@@ -96,7 +103,7 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 
 ```
 salvo/
-├── server.js               — stdlib-only Node server: static files + /api/data, /api/save, /api/proxy
+├── server.js               — stdlib-only Node server: static files + /api/data, /api/save, /api/proxy, /api/ws-proxy, /api/mcp-stdio
 ├── cli.js                   — headless Collection Runner (CI/CD), see [CLI Runner](#cli-runner)
 ├── data/                    — gitignored; your collections, environments, history, and globals (plain JSON)
 ├── index.html               — markup only, no inline JS or CSS
@@ -105,7 +112,7 @@ salvo/
 │   ├── themes.css          — Dark/Light/Nord/Carnival theme variable sets
 │   ├── sidebar.css         — sidebar, resizer, collection/folder/request rows, context menu
 │   ├── request.css         — URL bar, KV editor, auth editor, body editor, bulk edit
-│   ├── response.css        — response panel, status badge, JSON tree, history panel
+│   ├── response.css        — response panel, status badge, JSON tree, SSE event log, WebSocket transcript, MCP composer, history panel
 │   └── modals.css          — modal backdrop, environment modal, runner modal, toast notifications
 └── js/
     ├── state.js            — global state, auto-save scheduling, shared utilities
@@ -114,8 +121,10 @@ salvo/
     ├── sidebar.js          — sidebar rendering, search, context menus
     ├── curl.js             — curl command generation
     ├── request.js          — request editor: tabs, KV/auth/body editors, bulk edit
-    ├── response.js         — response panel rendering, DOM-based JSON tree
-    ├── send.js             — request execution (via /api/proxy), response parsing
+    ├── response.js         — response panel rendering, DOM-based JSON tree, SSE/WebSocket/MCP transcripts
+    ├── send.js             — request execution (via /api/proxy), response parsing, SSE parsing, OAuth2 flows
+    ├── websocket.js        — WebSocket client (ws://, wss://), relayed through the local server
+    ├── mcp.js              — MCP client (mcp+http://, mcp+https://, mcp+stdio://)
     ├── collections.js      — collection/folder/request CRUD, Postman & Salvo import/export
     ├── modals.js           — environment & global variables modal
     ├── runner.js           — Collection Runner (run a collection/folder, CSV/JSON data files, results modal)
@@ -243,10 +252,42 @@ Configure auth on the **Auth** tab of a request. Salvo supports:
 - **API Key** — adds a custom header (or query param) with a key/value you choose.
 - **OAuth 2.0 — Client Credentials** — set **Access Token URL**, **Client ID**, **Client Secret**, and optionally **Scope**. Click **Get Access Token** to fetch and cache a token, or just hit Send — Salvo fetches one automatically if none is cached (or the cached one has expired).
 - **OAuth 2.0 — Password Grant** — same as above, plus **Username**/**Password**, sent with `grant_type=password`.
+- **OAuth 2.0 — Authorization Code** — set **Authorization URL**, **Access Token URL**, **Client ID**, and (optionally, if not using PKCE) **Client Secret**. Click **Get Access Token** (or hit Send) to open the provider's login page in a popup; Salvo's local server handles the `/api/oauth/callback` redirect, exchanges the code for a token (with PKCE by default), and caches it like the other OAuth2 grants.
 - **Digest Auth** — set **Username**/**Password**. Salvo sends the request, and if the server responds with a `WWW-Authenticate: Digest` challenge, transparently retries with the computed digest response — no manual nonce handling needed.
 - **JWT Bearer (HS256)** — set a **Secret** and a JSON **payload** (e.g. `{"sub":"user123"}`). Salvo signs a fresh HS256 JWT at send time, adding `iat`/`exp` (1 hour) automatically if you don't specify them, and sends it as `Authorization: Bearer <jwt>`.
 
 For OAuth2, the fetched token is cached on the request (`cachedToken`/`cachedExpiry`) and reused until it expires.
+
+## Realtime & streaming protocols
+
+In addition to plain HTTP, the URL scheme determines whether a request is sent normally or switches the editor into a persistent-session mode with its own response panel.
+
+### Server-Sent Events (SSE)
+
+No special URL scheme needed — send a request as normal (`GET` or otherwise) to an endpoint that responds with `Content-Type: text/event-stream`. Salvo detects this and switches the response panel to a live-updating event log instead of a single body: each event shows its `event`/`id`/`retry` fields, the raw `data`, and the time it was received. Click **Cancel** (shown in place of Send while connected) to close the stream.
+
+### WebSocket
+
+Set the request URL to `ws://` or `wss://`. The Send button becomes **Connect** — click it to open a relayed WebSocket connection (proxied through Salvo's local server, so there's no browser CORS/origin restriction). Once connected:
+
+- The response panel shows a transcript of sent and received messages with timestamps.
+- A composer at the bottom lets you type a message and send it over the open connection.
+- The button becomes **Disconnect** — click it, or close the tab, to close the connection.
+
+Headers and auth configured on the request (e.g. a `Sec-WebSocket-Protocol` or `Authorization` header) are sent with the initial handshake.
+
+### MCP (Model Context Protocol)
+
+Salvo includes a small built-in MCP client for talking to MCP servers directly from a request tab, supporting both transports:
+
+- **Streamable HTTP** — set the URL to `mcp+http://` or `mcp+https://` followed by the server's endpoint (e.g. `mcp+https://mcp.deepwiki.com/mcp`). The `mcp+` prefix is stripped before the request is sent, and it's proxied server-side via the same mechanism as a normal request (no CORS issues).
+- **stdio** — set the URL to `mcp+stdio://<command line>` (e.g. `mcp+stdio://npx -y @some/mcp-server`). Salvo spawns that command as a local child process and speaks newline-delimited JSON-RPC over its stdin/stdout.
+
+Either way, click **Connect** to perform the `initialize` handshake (Salvo sends `initialize` then `notifications/initialized` automatically). Once connected:
+
+- The response panel shows the JSON-RPC message transcript (sent and received), plus the connected server's name/version once known.
+- A composer lets you pick a method (autocompleted from common MCP methods like `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`) and supply a JSON `params` object, then send it as a new JSON-RPC request.
+- Click **Disconnect**, or close the tab, to end the session.
 
 ## Pre-request & Test Scripts
 
@@ -372,7 +413,8 @@ node --test
 Runs the test suite with Node's built-in test runner — no dependencies needed (Node 18+). Covers:
 
 - `test/server.test.js` — `sanitizeName`/`uniqueName`, `buildColsFromFiles`, the `saveData`/`loadData` round trip (including `globals.json`) against a temporary data directory (the real `data/` is never touched), `getCliArg` (`--data-dir`/`--port` parsing), and `findMockMatch`/`startMockServer`/`stopMockServer`/`mockStatus`
-- `test/server-http.test.js` — `/api/data`, `/api/save`, `/api/proxy` (raw, formdata including file uploads, urlencoded, binary bodies, and unreachable upstreams), `/api/mock/start`/`/api/mock/status`/`/api/mock/stop`, and static file serving, against a real server instance
+- `test/server-http.test.js` — `/api/data`, `/api/save`, `/api/proxy`/`/api/proxy-stream` (raw, formdata including file uploads, urlencoded, binary bodies, SSE streaming, Digest auth, cookie jar, and unreachable upstreams), `/api/mock/start`/`/api/mock/status`/`/api/mock/stop`, the `/api/ws-proxy` WebSocket relay, the `/api/mcp-stdio` MCP stdio relay, OAuth2 callback handling, and static file serving, against a real server instance
+- `test/send.test.js` — SSE event-block parsing (`parseSseBlock`/`extractSseEvents`), run in a sandboxed copy of the global-scope frontend JS
 - `test/collections.test.js` — `parsePostman` and `mergeImportedData` (including collection descriptions) and `normalizeReq`'s defaults for description/comments/mock/examples, run in a sandboxed copy of the global-scope frontend JS
 - `test/request.test.js` — path variables, computed-headers preview, the KV editor (including bulk edit and form-data file rows), the binary body type, `{{variable}}` autocomplete (including global variable fallback and Collection Runner row data), `extractMockPath`, and the Docs/Examples/Mock tabs and badges, run in a sandboxed copy of the global-scope frontend JS
 - `test/runner.test.js` — Collection Runner CSV/JSON data file parsing (`parseCsv`, `parseCsvLine`, `parseRunnerDataFile`), run in a sandboxed copy of the global-scope frontend JS

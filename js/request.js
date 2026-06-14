@@ -490,6 +490,8 @@ function computedAuthHeaders(auth) {
     case 'oauth2_cc':
     case 'oauth2_pwd':
       return [{ key: 'Authorization', value: `Bearer ${auth.cachedToken || '<fetched automatically when sent>'}` }];
+    case 'oauth2_auth_code':
+      return [{ key: 'Authorization', value: `Bearer ${auth.cachedToken || '<sign in via "Get Access Token">'}` }];
     case 'jwt':
       return auth.jwtSecret ? [{ key: 'Authorization', value: 'Bearer <generated automatically when sent>' }] : [];
     default:
@@ -889,6 +891,7 @@ function authHTML(a) {
         <option value="apikey"    ${a.type === 'apikey'    ? 'selected' : ''}>API Key</option>
         <option value="oauth2_cc" ${a.type === 'oauth2_cc' ? 'selected' : ''}>OAuth 2.0 - Client Credentials</option>
         <option value="oauth2_pwd" ${a.type === 'oauth2_pwd' ? 'selected' : ''}>OAuth 2.0 - Password Grant</option>
+        <option value="oauth2_auth_code" ${a.type === 'oauth2_auth_code' ? 'selected' : ''}>OAuth 2.0 - Authorization Code</option>
         <option value="digest"    ${a.type === 'digest'    ? 'selected' : ''}>Digest Auth</option>
         <option value="jwt"       ${a.type === 'jwt'       ? 'selected' : ''}>JWT Bearer (HS256)</option>
       </select>
@@ -983,6 +986,52 @@ function authHTML(a) {
             : 'No token yet — fetched automatically on Send'
         }</span>
       </div>`;
+  }
+
+  if (a.type === 'oauth2_auth_code') {
+    const defaultRedirect = `${location.origin}/api/oauth/callback`;
+    html += `
+      <label style="${AUTH_LABEL_STYLE}">Authorization URL</label>
+      <input value="${esc(a.authorizationUrl)}" oninput="authSet('authorizationUrl',this.value);showVarSuggest(this)"
+             onkeydown="varSuggestKeydown(this,event)" onblur="varSuggestBlur()"
+             placeholder="https://auth.example.com/oauth/authorize" style="width:100%;font-family:monospace;margin-bottom:8px">
+      <label style="${AUTH_LABEL_STYLE}">Access Token URL</label>
+      <input value="${esc(a.accessTokenUrl)}" oninput="authSet('accessTokenUrl',this.value);showVarSuggest(this)"
+             onkeydown="varSuggestKeydown(this,event)" onblur="varSuggestBlur()"
+             placeholder="https://auth.example.com/oauth/token" style="width:100%;font-family:monospace;margin-bottom:8px">
+      <label style="${AUTH_LABEL_STYLE}">Redirect URI</label>
+      <input value="${esc(a.redirectUri)}" oninput="authSet('redirectUri',this.value);showVarSuggest(this)"
+             onkeydown="varSuggestKeydown(this,event)" onblur="varSuggestBlur()"
+             placeholder="${esc(defaultRedirect)}" style="width:100%;font-family:monospace;margin-bottom:8px">
+      <p class="muted">Register <code>${esc(defaultRedirect)}</code> as an allowed redirect URI with your OAuth provider, or set a custom one above (e.g. if Salvo runs on a different port).</p>
+      <div class="two-col">
+        <div>
+          <label style="${AUTH_LABEL_STYLE}">Client ID</label>
+          <input value="${esc(a.clientId)}" oninput="authSet('clientId',this.value);showVarSuggest(this)"
+                 onkeydown="varSuggestKeydown(this,event)" onblur="varSuggestBlur()" style="width:100%">
+        </div>
+        <div>
+          <label style="${AUTH_LABEL_STYLE}">Client Secret (optional with PKCE)</label>
+          <input type="password" value="${esc(a.clientSecret)}" oninput="authSet('clientSecret',this.value);showVarSuggest(this)"
+                 onkeydown="varSuggestKeydown(this,event)" onblur="varSuggestBlur()" style="width:100%">
+        </div>
+      </div>
+      <label style="${AUTH_LABEL_STYLE}">Scope (optional)</label>
+      <input value="${esc(a.scope)}" oninput="authSet('scope',this.value);showVarSuggest(this)"
+             onkeydown="varSuggestKeydown(this,event)" onblur="varSuggestBlur()" style="width:100%;font-family:monospace;margin-bottom:8px">
+      <label style="display:flex;align-items:center;gap:6px;color:var(--text);font-size:13px;margin-bottom:8px">
+        <input type="checkbox" ${a.pkce ? 'checked' : ''} onchange="authSet('pkce',this.checked)">
+        Use PKCE (recommended)
+      </label>
+      <div style="display:flex;align-items:center;gap:10px;margin-top:8px">
+        <button class="btn-primary" onclick="manualFetchOAuthToken()">Get Access Token</button>
+        <span style="font-size:11px;color:var(--text-muted)">${
+          a.cachedToken
+            ? `Token cached, expires ${new Date(a.cachedExpiry).toLocaleTimeString()}`
+            : 'Not signed in — opens a popup to log in and authorize'
+        }</span>
+      </div>
+      <p class="muted">Opens a popup to the Authorization URL. After you log in and approve access, the provider redirects back to the Redirect URI, which exchanges the resulting code for an access token (and refresh token, if the provider returns one).</p>`;
   }
 
   if (a.type === 'digest') {

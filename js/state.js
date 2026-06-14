@@ -89,7 +89,8 @@ function defaultAuth() {
   return {
     type: 'none', token: '', username: '', password: '', apiKey: '', apiValue: '',
     accessTokenUrl: '', clientId: '', clientSecret: '', scope: '',
-    cachedToken: '', cachedExpiry: 0,
+    cachedToken: '', cachedExpiry: 0, cachedRefreshToken: '',
+    authorizationUrl: '', redirectUri: '', pkce: true,
     jwtSecret: '', jwtPayload: '{"sub":"user123"}',
   };
 }

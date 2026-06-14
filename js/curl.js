@@ -32,7 +32,7 @@ function buildCurl() {
     parts.push(`-u '${auth.username}:${auth.password}'`);
   } else if (auth.type === 'apikey' && auth.apiKey) {
     parts.push(`-H '${auth.apiKey}: ${auth.apiValue}'`);
-  } else if ((auth.type === 'oauth2_cc' || auth.type === 'oauth2_pwd') && auth.cachedToken) {
+  } else if ((auth.type === 'oauth2_cc' || auth.type === 'oauth2_pwd' || auth.type === 'oauth2_auth_code') && auth.cachedToken) {
     parts.push(`-H 'Authorization: Bearer ${auth.cachedToken}'`);
   } else if (auth.type === 'digest' && (auth.username || auth.password)) {
     parts.push(`--digest -u '${auth.username}:${auth.password}'`);

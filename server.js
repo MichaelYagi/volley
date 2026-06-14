@@ -513,6 +513,34 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // OAuth 2.0 Authorization Code redirect target — the provider redirects the
+  // popup window opened by startAuthCodeFlow() (js/send.js) here with
+  // ?code=...&state=... (or ?error=...). Hands the result back to the opener
+  // via postMessage and closes itself.
+  if (u.pathname === '/api/oauth/callback' && req.method === 'GET') {
+    const payload = {
+      source: 'salvo-oauth',
+      code:  u.searchParams.get('code'),
+      state: u.searchParams.get('state'),
+      error: u.searchParams.get('error'),
+    };
+    // Escape '<' so a malicious code/state/error value can't break out of
+    // the inline <script> (e.g. via "</script>").
+    const esc  = s => JSON.stringify(s).replace(/</g, '\\u003c');
+    const json = esc(payload);
+    const message = payload.error ? 'Authorization failed: ' + payload.error : 'Authorization complete — you can close this window.';
+    const html = `<!DOCTYPE html><html><body>
+<script>
+  if (window.opener) window.opener.postMessage(${json}, window.location.origin);
+  document.body.textContent = ${esc(message)};
+  setTimeout(() => window.close(), 500);
+</script>
+</body></html>`;
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(html);
+    return;
+  }
+
   if (u.pathname === '/api/mock/status' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true, ...mockStatus() }));

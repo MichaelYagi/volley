@@ -407,3 +407,27 @@ test('GET /does-not-exist returns 404', async () => {
   const res = await fetch(`${base}/does-not-exist`);
   assert.strictEqual(res.status, 404);
 });
+
+// ─── OAuth2 Authorization Code callback ─────────────────────────────────────
+
+test('GET /api/oauth/callback posts code/state back to the opener and closes itself', async () => {
+  const res = await fetch(`${base}/api/oauth/callback?code=abc123&state=xyz`);
+  assert.strictEqual(res.status, 200);
+  assert.match(res.headers.get('content-type'), /text\/html/);
+
+  const html = await res.text();
+  assert.match(html, /"source":"salvo-oauth"/);
+  assert.match(html, /"code":"abc123"/);
+  assert.match(html, /"state":"xyz"/);
+  assert.match(html, /window\.close\(\)/);
+});
+
+test('GET /api/oauth/callback reports an error result and escapes "<" to prevent script injection', async () => {
+  const res = await fetch(`${base}/api/oauth/callback?error=${encodeURIComponent('access_denied</script><script>alert(1)')}`);
+  assert.strictEqual(res.status, 200);
+
+  const html = await res.text();
+  assert.doesNotMatch(html, /<\/script><script>alert/);
+  assert.match(html, /access_denied/);
+  assert.match(html, /Authorization failed/);
+});

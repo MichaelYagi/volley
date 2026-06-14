@@ -123,6 +123,27 @@ test('computedAuthHeaders reflects the Auth tab (Bearer)', () => {
   assert.deepEqual(sandbox.computedAuthHeaders(auth), [{ key: 'Authorization', value: 'Bearer abc123' }]);
 });
 
+test('computedAuthHeaders reflects the Auth tab (OAuth2 Authorization Code)', () => {
+  const sandbox = loadSandbox();
+  assert.deepEqual(
+    sandbox.computedAuthHeaders({ type: 'oauth2_auth_code', cachedToken: '' }),
+    [{ key: 'Authorization', value: 'Bearer <sign in via "Get Access Token">' }]
+  );
+  assert.deepEqual(
+    sandbox.computedAuthHeaders({ type: 'oauth2_auth_code', cachedToken: 'tok123' }),
+    [{ key: 'Authorization', value: 'Bearer tok123' }]
+  );
+});
+
+test('defaultAuth includes Authorization Code grant fields with PKCE on by default', () => {
+  const sandbox = loadSandbox();
+  const auth = sandbox.defaultAuth();
+  assert.strictEqual(auth.authorizationUrl, '');
+  assert.strictEqual(auth.redirectUri, '');
+  assert.strictEqual(auth.pkce, true);
+  assert.strictEqual(auth.cachedRefreshToken, '');
+});
+
 // ─── Auto-generated header opt-out (disabledAutoHeaders) ────────────────────
 
 test('isAutoHeaderDisabled is false by default and true once a key is recorded (case-insensitive)', () => {

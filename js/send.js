@@ -132,7 +132,7 @@ async function buildRequestArgs(req) {
   if (auth.type === 'apikey' && auth.apiKey && !isAutoHeaderDisabled(req, interp(auth.apiKey))) {
     headers[auth.apiKey] = auth.apiValue;
   }
-  if ((auth.type === 'oauth2_cc' || auth.type === 'oauth2_pwd') && !isAutoHeaderDisabled(req, 'Authorization')) {
+  if ((auth.type === 'oauth2_cc' || auth.type === 'oauth2_pwd' || auth.type === 'oauth2_auth_code') && !isAutoHeaderDisabled(req, 'Authorization')) {
     const token = await ensureOAuthToken(auth);
     if (token) headers['Authorization'] = `Bearer ${token}`;
   }
@@ -180,24 +180,23 @@ async function buildRequestArgs(req) {
   return { url: urlObj.toString(), headers, bodyKind, bodyPayload, digestAuth };
 }
 
-// ─── OAuth 2.0 token acquisition (Client Credentials / Password Grant) ────────
+// ─── OAuth 2.0 token acquisition ───────────────────────────────────────────────
 
 async function ensureOAuthToken(auth) {
   if (auth.cachedToken && auth.cachedExpiry > Date.now() + 5000) return auth.cachedToken;
+  if (auth.type === 'oauth2_auth_code') {
+    if (auth.cachedRefreshToken) return refreshAuthCodeToken(auth);
+    throw new Error('No access token — click "Get Access Token" on the Auth tab to sign in');
+  }
   return fetchOAuthToken(auth);
 }
 
-async function fetchOAuthToken(auth) {
+// POSTs a token request (urlencoded params) to auth.accessTokenUrl via the
+// proxy, then caches the resulting access/refresh token on `auth`. Shared by
+// Client Credentials, Password Grant, and Authorization Code (initial
+// exchange + refresh).
+async function tokenRequest(auth, params) {
   if (!auth.accessTokenUrl) throw new Error('Access Token URL is required');
-
-  const params = { grant_type: auth.type === 'oauth2_pwd' ? 'password' : 'client_credentials' };
-  if (auth.clientId)     params.client_id     = interp(auth.clientId);
-  if (auth.clientSecret) params.client_secret = interp(auth.clientSecret);
-  if (auth.scope)        params.scope         = interp(auth.scope);
-  if (auth.type === 'oauth2_pwd') {
-    params.username = interp(auth.username);
-    params.password = interp(auth.password);
-  }
 
   const body = Object.entries(params).map(([key, value]) => ({ key, value }));
   const res  = await fetch('/api/proxy', {
@@ -206,7 +205,9 @@ async function fetchOAuthToken(auth) {
     body: JSON.stringify({
       url:      interp(auth.accessTokenUrl),
       method:   'POST',
-      headers:  { 'Content-Type': 'application/x-www-form-urlencoded' },
+      // Some providers (e.g. GitHub) default to a form-encoded token
+      // response unless asked for JSON.
+      headers:  { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
       bodyKind: 'urlencoded',
       body,
     }),
@@ -217,18 +218,109 @@ async function fetchOAuthToken(auth) {
     throw new Error('Token request failed: ' + (data.error || `HTTP ${data.status}`));
   }
 
-  const json = JSON.parse(new TextDecoder('utf-8').decode(base64ToBytes(data.bodyBase64)));
-  if (!json.access_token) throw new Error('Token response missing access_token');
+  const text = new TextDecoder('utf-8').decode(base64ToBytes(data.bodyBase64));
+  // Most providers honor `Accept: application/json`, but some always
+  // respond with a form-encoded body regardless — fall back to parsing
+  // that instead of failing outright.
+  let json;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    json = Object.fromEntries(new URLSearchParams(text));
+  }
+  if (!json.access_token) throw new Error('Token response missing access_token: ' + text);
 
   auth.cachedToken  = json.access_token;
   auth.cachedExpiry = Date.now() + (json.expires_in ? json.expires_in * 1000 : 3600_000);
+  if (json.refresh_token) auth.cachedRefreshToken = json.refresh_token;
   scheduleAutoSave();
   return auth.cachedToken;
 }
 
+async function fetchOAuthToken(auth) {
+  const params = { grant_type: auth.type === 'oauth2_pwd' ? 'password' : 'client_credentials' };
+  if (auth.clientId)     params.client_id     = interp(auth.clientId);
+  if (auth.clientSecret) params.client_secret = interp(auth.clientSecret);
+  if (auth.scope)        params.scope         = interp(auth.scope);
+  if (auth.type === 'oauth2_pwd') {
+    params.username = interp(auth.username);
+    params.password = interp(auth.password);
+  }
+
+  return tokenRequest(auth, params);
+}
+
+async function refreshAuthCodeToken(auth) {
+  const params = { grant_type: 'refresh_token', refresh_token: auth.cachedRefreshToken };
+  if (auth.clientId)     params.client_id     = interp(auth.clientId);
+  if (auth.clientSecret) params.client_secret = interp(auth.clientSecret);
+  return tokenRequest(auth, params);
+}
+
+// ─── OAuth 2.0 Authorization Code grant ────────────────────────────────────────
+// Opens a popup to the provider's authorization URL; the provider redirects
+// the popup to /api/oauth/callback (server.js), which posts the resulting
+// code/state/error back to this window and closes itself. The code is then
+// exchanged for a token via tokenRequest().
+
+async function startAuthCodeFlow(auth) {
+  if (!auth.authorizationUrl) throw new Error('Authorization URL is required');
+  if (!auth.accessTokenUrl)   throw new Error('Access Token URL is required');
+
+  const redirectUri = auth.redirectUri || `${location.origin}/api/oauth/callback`;
+  const state = uid();
+
+  const params = new URLSearchParams({
+    response_type: 'code',
+    client_id:     interp(auth.clientId),
+    redirect_uri:  redirectUri,
+    state,
+  });
+  if (auth.scope) params.set('scope', interp(auth.scope));
+
+  let codeVerifier = '';
+  if (auth.pkce) {
+    codeVerifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(codeVerifier));
+    params.set('code_challenge', base64url(new Uint8Array(digest)));
+    params.set('code_challenge_method', 'S256');
+  }
+
+  const authUrl = `${interp(auth.authorizationUrl)}?${params.toString()}`;
+  const popup = window.open(authUrl, 'salvo-oauth', 'width=500,height=700');
+  if (!popup) throw new Error('Popup blocked — please allow popups for this site');
+
+  const code = await new Promise((resolve, reject) => {
+    const timer = setInterval(() => {
+      if (popup.closed) { cleanup(); reject(new Error('Authorization window closed')); }
+    }, 500);
+    function onMessage(e) {
+      if (!e.data || e.data.source !== 'salvo-oauth') return;
+      cleanup();
+      if (e.data.state !== state) { reject(new Error('OAuth state mismatch')); return; }
+      if (e.data.error) { reject(new Error(e.data.error)); return; }
+      resolve(e.data.code);
+    }
+    function cleanup() {
+      clearInterval(timer);
+      window.removeEventListener('message', onMessage);
+      if (!popup.closed) popup.close();
+    }
+    window.addEventListener('message', onMessage);
+  });
+
+  const exchangeParams = { grant_type: 'authorization_code', code, redirect_uri: redirectUri };
+  if (auth.clientId)     exchangeParams.client_id     = interp(auth.clientId);
+  if (auth.clientSecret) exchangeParams.client_secret = interp(auth.clientSecret);
+  if (codeVerifier)      exchangeParams.code_verifier = codeVerifier;
+
+  return tokenRequest(auth, exchangeParams);
+}
+
 function manualFetchOAuthToken() {
   const auth = activeTab().req.auth;
-  fetchOAuthToken(auth)
+  const promise = auth.type === 'oauth2_auth_code' ? startAuthCodeFlow(auth) : fetchOAuthToken(auth);
+  promise
     .then(() => { renderReqPanel(); notify('Token acquired', 'success'); })
     .catch(e => notify(e.message, 'error'));
 }

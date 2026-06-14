@@ -171,6 +171,18 @@
   padding: 8px;
 }
 
+/* ─── GraphQL Body Editor ────────────────────────────────────────────────────── */
+.gql-editor { display: flex; flex-direction: column; }
+.gql-textarea {
+  width: 100%;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  min-height: 100px;
+  padding: 8px;
+  resize: vertical;
+}
+
 /* ─── Auth Editor ───────────────────────────────────────────────────────────── */
 .auth-row        { margin-bottom: 12px; }
 .auth-row select { width: auto; min-width: 160px; }

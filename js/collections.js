@@ -162,7 +162,7 @@ function newRequestTemplate() {
     headers: [],
     params:  [],
     pathVars: [],
-    body:    { type: 'none', raw: '', formData: [] },
+    body:    defaultBody(),
     auth:    defaultAuth(),
     preRequestScript: '',
     testScript:       '',

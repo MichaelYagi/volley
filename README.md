@@ -47,6 +47,7 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
   - [`pm` API](#pm-api)
 - [Collection Runner](#collection-runner)
   - [Data-driven runs (CSV/JSON)](#data-driven-runs-csvjson)
+- [CLI Runner](#cli-runner)
 - [Mock Server](#mock-server)
 - [Cookie Jar](#cookie-jar)
 - [Tabs](#tabs)
@@ -61,7 +62,7 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 - **Sidebar search & multi-select** — filter the sidebar by request name or URL as you type. `Ctrl`/`Cmd`-click or `Shift`-click to select multiple requests, then move or delete them all at once.
 - **Drag-and-drop organization** — reorder requests and folders within a collection, move a request into a folder, or reorder collections and folders themselves by dragging their rows.
 - **Multi-tab editing** — open several requests at once in browser-style tabs above the editor; each tab keeps its own edits, response, and active sub-tab.
-- **Full request editing** — method, URL, query params, headers, auth, and body (raw JSON/XML/text, form-data with file uploads, x-www-form-urlencoded, raw binary)
+- **Full request editing** — method, URL, query params, headers, auth, and body (raw JSON/XML/text, form-data with file uploads, x-www-form-urlencoded, raw binary, GraphQL)
 - **URL ↔ Params sync** — editing the URL's query string updates the Params table and vice versa, like Postman.
 - **Path variables** — `:name` segments in the URL (e.g. `/users/:id`) show up as an editable "Path Variables" table on the Params tab; the names come from the URL, you fill in the values, and they're substituted in when the request is sent (and in the cURL preview).
 - **Auto-generated headers preview** — the Headers tab shows a read-only "Auto-generated" section previewing the `Authorization`/API key header from the Auth tab, the `Content-Type` the Body tab will add, and any `Cookie` header the cookie jar will attach for this request's domain. A manual header that will be silently overridden by the Auth tab (e.g. a hand-typed `Authorization`) is highlighted with a warning.
@@ -73,6 +74,7 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 - **Bulk edit** — click "Bulk Edit" above any params/headers/form-data/variables table to switch to a plain-text `name: value` editor (one per line, `// ` prefix to disable a row). Click "Form Edit" to switch back; edits are parsed back into rows, preserving each row's id/notes where the name matches.
 - **Pre-request & test scripts** — run JavaScript before a request is sent or after its response arrives, via a small `pm`-style API. Extract values into environment/global variables, assert on the response with `pm.test`/`pm.expect`, and see pass/fail results in a "Tests" tab.
 - **Collection Runner** — right-click a collection ("Run Collection") or a folder ("Run Folder") to send every request in it sequentially. Each request's pre-request/test scripts run as usual (sharing environment/global variables across the run, so values extracted by one request are available to the next), and results — status, timing, and test pass/fail counts — are shown live in a runner modal. Optionally attach a CSV or JSON data file before starting a run to repeat the whole run once per row, with each row's columns available as `{{variables}}` and via `pm.iterationData.get(key)`. Stop a run early with the "Stop" button.
+- **CLI runner** — run a collection or folder from the command line with `node cli.js <collection> [folder]`, exiting non-zero on any error/4xx/5xx response or failed test — handy for CI/CD pipelines. See [CLI Runner](#cli-runner).
 - **Request & collection descriptions** — give any request or collection a free-text description (a request's "Docs" tab, or a collection's right-click "Edit Description") to document what it does for anyone else working in the same `data/` folder.
 - **Comments** — leave timestamped, named comments on a request from its "Docs" tab — handy for leaving notes for teammates sharing the same `data/` folder.
 - **Saved response Examples** — after sending a request, click "Save as Example" above the response body to snapshot its status/headers/body under a name. Saved examples live on the request's "Examples" tab — view one to load it back into the response viewer, or delete it.
@@ -95,6 +97,7 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 ```
 salvo/
 ├── server.js               — stdlib-only Node server: static files + /api/data, /api/save, /api/proxy
+├── cli.js                   — headless Collection Runner (CI/CD), see [CLI Runner](#cli-runner)
 ├── data/                    — gitignored; your collections, environments, history, and globals (plain JSON)
 ├── index.html               — markup only, no inline JS or CSS
 ├── css/
@@ -146,7 +149,8 @@ All JS files share the global scope and load in order. `state.js` must be first 
     "type": "raw",
     "raw": "{\"key\": \"value\"}",
     "contentType": "json",
-    "formData": []
+    "formData": [],
+    "graphql": { "query": "", "variables": "" }
   },
   "auth": {
     "type": "bearer",
@@ -190,6 +194,22 @@ A form-data body's `formData` rows can be files instead of plain text values, an
 ```
 
 File contents (`fileData`) are stored as base64 in the request's saved JSON, sent to the server as part of `/api/proxy`'s body, and reassembled into a multipart `Blob`/raw `Buffer` server-side.
+
+A `"graphql"` body type sends a `POST` (or whatever method the request uses) with a JSON body of `{ "query": ..., "variables": ... }`, and adds a `Content-Type: application/json` header automatically (unless you've set your own or disabled it):
+
+```json
+{
+  "body": {
+    "type": "graphql",
+    "graphql": {
+      "query": "query GetUser($id: ID!) { user(id: $id) { id name } }",
+      "variables": "{\"id\": \"{{userId}}\"}"
+    }
+  }
+}
+```
+
+Both `query` and `variables` support `{{variable}}` interpolation; `variables` is parsed as JSON when the request is sent.
 
 ## Environment variables
 
@@ -286,6 +306,29 @@ Before clicking **Start Run**, optionally choose a `.csv` or `.json` data file:
 - **JSON** — must be an array of objects; each object becomes a data row.
 
 When a data file is attached, the whole run repeats once per row. While a row is active, its columns take priority over environment/global variables for `{{variable}}` interpolation, and are also readable from scripts via `pm.iterationData.get('columnName')`. Each result in the runner modal is tagged with its iteration number when running with data.
+
+## CLI Runner
+
+`cli.js` runs the same Collection Runner logic from the command line, without a browser — useful for CI/CD pipelines.
+
+```bash
+node cli.js <collection> [folder] [options]
+```
+
+- `<collection>` — name of the collection to run (required)
+- `[folder]` — name of a folder within that collection to run instead of the whole collection (optional)
+
+Options:
+
+- `--env <name>` — use this environment (by name) instead of the active one
+- `--data <file>` — a CSV/JSON data file for a [data-driven run](#data-driven-runs-csvjson)
+- `--data-dir <dir>` — same as `server.js`'s `--data-dir`, defaults to `./data`
+
+```bash
+node cli.js "My API" --env Staging --data rows.csv
+```
+
+For each request, prints its method, name, status (or error), and elapsed time, plus `PASS`/`FAIL` lines for any test scripts, followed by a summary line. The process exits with code `1` if any request errored or returned a 4xx/5xx response, or if any test failed — `0` otherwise.
 
 ## Mock Server
 

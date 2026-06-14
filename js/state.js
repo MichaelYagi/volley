@@ -99,6 +99,37 @@ function defaultMock() {
   return { enabled: false, status: 200, headers: [], body: '', delay: 0 };
 }
 
+/** Default shape for Request.body — covers all supported body types */
+function defaultBody() {
+  return { type: 'none', raw: '', formData: [], graphql: { query: '', variables: '' } };
+}
+
+/** Normalizes a raw request object (e.g. loaded from data/) into the full
+ *  Request shape, filling in defaults for fields older saves may be missing. */
+function normalizeReq(r) {
+  const body = { ...defaultBody(), ...(r.body || {}) };
+  body.graphql = { ...defaultBody().graphql, ...(body.graphql || {}) };
+
+  return {
+    id:      uid(),
+    name:    r.name || 'Untitled',
+    method:  (r.method || 'GET').toUpperCase(),
+    url:     r.url || '',
+    params:  r.params  || [],
+    pathVars: r.pathVars || [],
+    headers: r.headers || [],
+    body,
+    auth:    { ...defaultAuth(), ...(r.auth || {}) },
+    preRequestScript: r.preRequestScript || '',
+    testScript:       r.testScript || '',
+    description: r.description || '',
+    comments: r.comments || [],
+    mock: { ...defaultMock(), ...(r.mock || {}) },
+    examples: r.examples || [],
+    disabledAutoHeaders: r.disabledAutoHeaders || [],
+  };
+}
+
 /** Color for an HTTP status code: grey if absent (no response yet/network
  *  error), green for 2xx, orange for 3xx, red for 4xx/5xx. */
 function statusColor(status) {

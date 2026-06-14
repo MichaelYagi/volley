@@ -167,6 +167,14 @@ async function buildRequestArgs(req) {
     bodyPayload = req.body.formData
       .filter(f => f.enabled && f.key)
       .map(f => ({ key: interp(f.key), value: interp(f.value) }));
+  } else if (bt === 'graphql') {
+    bodyKind = 'graphql';
+    let variables = {};
+    try { variables = JSON.parse(interp(req.body.graphql.variables || '') || '{}'); } catch {}
+    bodyPayload = { query: interp(req.body.graphql.query || ''), variables };
+    if (!isAutoHeaderDisabled(req, 'Content-Type') && !Object.keys(headers).some(k => k.toLowerCase() === 'content-type')) {
+      headers['Content-Type'] = 'application/json';
+    }
   }
 
   return { url: urlObj.toString(), headers, bodyKind, bodyPayload, digestAuth };

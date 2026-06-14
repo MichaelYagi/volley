@@ -504,6 +504,7 @@ function computedBodyHeaders(req) {
 
   const b = req.body;
   if (b.type === 'formdata') return [{ key: 'Content-Type', value: 'multipart/form-data; boundary=...' }];
+  if (b.type === 'graphql')  return [{ key: 'Content-Type', value: 'application/json' }];
   return [];
 }
 
@@ -1027,8 +1028,8 @@ function authSet(field, v) { activeTab().req.auth[field] = v; scheduleAutoSave()
 // ─── Body Editor ──────────────────────────────────────────────────────────────
 
 function bodyHTML(b) {
-  const types = ['none', 'raw', 'formdata', 'urlencoded', 'binary'];
-  const labels = { none: 'none', raw: 'raw', formdata: 'form-data', urlencoded: 'x-www-form-urlencoded', binary: 'binary' };
+  const types = ['none', 'raw', 'formdata', 'urlencoded', 'binary', 'graphql'];
+  const labels = { none: 'none', raw: 'raw', formdata: 'form-data', urlencoded: 'x-www-form-urlencoded', binary: 'binary', graphql: 'GraphQL' };
 
   let html = `<div class="body-types">`;
 
@@ -1064,6 +1065,17 @@ function bodyHTML(b) {
         <span class="kv-file-name">${b.fileName ? esc(b.fileName) + (b.fileSize != null ? ` (${formatBytes(b.fileSize)})` : '') : 'No file selected'}</span>
       </div>
       ${b.fileName ? `<p class="muted" style="margin-top:8px">Content-Type: <code>${esc(b.binaryMimeType || 'application/octet-stream')}</code></p>` : ''}`;
+  } else if (b.type === 'graphql') {
+    const gql = b.graphql || { query: '', variables: '' };
+    html += `
+      <div class="gql-editor">
+        <label class="kv-computed-label" style="margin-top:0">Query</label>
+        <textarea class="gql-textarea" spellcheck="false" placeholder="query { ... }"
+                  oninput="bodyGraphqlSet('query',this.value)">${esc(gql.query)}</textarea>
+        <label class="kv-computed-label">Variables (JSON)</label>
+        <textarea class="gql-textarea" spellcheck="false" placeholder="{}"
+                  oninput="bodyGraphqlSet('variables',this.value)">${esc(gql.variables)}</textarea>
+      </div>`;
   } else {
     html += kvEditorHTML(b.formData, 'formData');
   }
@@ -1073,6 +1085,13 @@ function bodyHTML(b) {
 
 function bodyTypeChange(t) { activeTab().req.body.type = t; scheduleAutoSave(); renderReqPanel(); }
 function bodySet(field, v) { activeTab().req.body[field] = v; scheduleAutoSave(); }
+
+function bodyGraphqlSet(field, v) {
+  const b = activeTab().req.body;
+  if (!b.graphql) b.graphql = { query: '', variables: '' };
+  b.graphql[field] = v;
+  scheduleAutoSave();
+}
 
 // Reads the chosen file as base64 for the "binary" body type.
 function bodyBinaryFile(input) {

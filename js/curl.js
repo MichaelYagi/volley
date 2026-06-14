@@ -68,6 +68,14 @@ function buildCurl() {
   if (body.type === 'binary' && body.fileName) {
     parts.push(`--data-binary '@${body.fileName}'`);
   }
+  if (body.type === 'graphql' && body.graphql?.query) {
+    let variables = {};
+    try { variables = JSON.parse(interp(body.graphql.variables || '') || '{}'); } catch {}
+    const payload = JSON.stringify({ query: interp(body.graphql.query), variables });
+    const hasContentType = r.headers.some(h => h.enabled && h.key.toLowerCase() === 'content-type');
+    if (!hasContentType) parts.push(`-H 'Content-Type: application/json'`);
+    parts.push(`-d '${payload.replace(/'/g, `'\\''`)}'`);
+  }
 
   // One flag per line for readability
   return parts.join(' \\\n  ');

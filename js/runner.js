@@ -205,6 +205,27 @@ async function runSingleRequest(reqOrig) {
   return result;
 }
 
+// Headless equivalent of startRunnerRun() — runs every request once per data
+// row (or once if `dataRows` is empty/null) via runSingleRequest(), without
+// touching state.runner or the modal. Used by cli.js. Returns the flat array
+// of per-request results (with `.iteration` set when dataRows has >1 row).
+async function runRequestsHeadless(requests, dataRows) {
+  const rows = dataRows && dataRows.length ? dataRows : [null];
+  const results = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    state.runner = { currentRow: rows[i] };
+    for (const req of requests) {
+      const result = await runSingleRequest(req);
+      if (rows.length > 1) result.iteration = i + 1;
+      results.push(result);
+    }
+  }
+
+  state.runner = null;
+  return results;
+}
+
 // ─── Runner Modal ───────────────────────────────────────────────────────────────
 
 function openRunnerModal() {

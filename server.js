@@ -574,6 +574,9 @@ const server = http.createServer((req, res) => {
           if (bodyKind === 'binary') {
             return reqBody?.fileData ? Buffer.from(reqBody.fileData, 'base64') : undefined;
           }
+          if (bodyKind === 'graphql') {
+            return JSON.stringify({ query: reqBody?.query || '', variables: reqBody?.variables || {} });
+          }
           return undefined;
         }
 

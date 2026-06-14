@@ -33,13 +33,6 @@ function loadSandbox() {
   vm.runInContext(stateSrc, sandbox, { filename: 'state.js' });
   vm.runInContext(collectionsSrc, sandbox, { filename: 'collections.js' });
 
-  // normalizeReq lives in app.js, which has side-effecting boot code we don't
-  // want to run — pull just that one function out by source.
-  const appSrc = fs.readFileSync(path.join(__dirname, '../js/app.js'), 'utf8');
-  const match = appSrc.match(/function normalizeReq[\s\S]*?\n}\n/);
-  assert.ok(match, 'normalizeReq not found in app.js');
-  vm.runInContext(match[0], sandbox, { filename: 'normalizeReq.js' });
-
   // mergeImportedData calls these — stub them out as no-ops for the test.
   // Also re-expose top-level `const state` as a property of the sandbox object,
   // since `const`/`let` bindings aren't reflected on the context's global object.

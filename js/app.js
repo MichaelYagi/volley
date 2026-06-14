@@ -1,26 +1,5 @@
 // ─── Data loading / saving (data/ via server.js) ───────────────────────────────
 
-function normalizeReq(r) {
-  return {
-    id:      uid(),
-    name:    r.name || 'Untitled',
-    method:  (r.method || 'GET').toUpperCase(),
-    url:     r.url || '',
-    params:  r.params  || [],
-    pathVars: r.pathVars || [],
-    headers: r.headers || [],
-    body:    r.body || { type: 'none', raw: '', formData: [] },
-    auth:    { ...defaultAuth(), ...(r.auth || {}) },
-    preRequestScript: r.preRequestScript || '',
-    testScript:       r.testScript || '',
-    description: r.description || '',
-    comments: r.comments || [],
-    mock: { ...defaultMock(), ...(r.mock || {}) },
-    examples: r.examples || [],
-    disabledAutoHeaders: r.disabledAutoHeaders || [],
-  };
-}
-
 async function loadData() {
   const res  = await fetch('/api/data');
   const data = await res.json();
@@ -240,7 +219,7 @@ function replayHistory(i) {
     headers: [],
     params:  [],
     pathVars: [],
-    body:    { type: 'none', raw: '', formData: [] },
+    body:    defaultBody(),
     auth:    defaultAuth(),
     preRequestScript: '',
     testScript:       '',

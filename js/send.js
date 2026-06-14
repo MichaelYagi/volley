@@ -41,7 +41,7 @@ async function sendRequest() {
 
     const { url: builtUrl, headers, bodyKind, bodyPayload, digestAuth } = await buildRequestArgs(tab.req);
 
-    const proxyRes = await fetch('/api/proxy', {
+    const proxyRes = await fetch('/api/proxy-stream', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
@@ -51,29 +51,78 @@ async function sendRequest() {
       signal:  tab.abortCtrl.signal,
     });
 
-    const data = await proxyRes.json();
-    if (!data.ok) throw new Error(data.error);
+    if (proxyRes.headers.get('x-salvo-stream') === 'error') {
+      const data = await proxyRes.json();
+      throw new Error(data.error);
+    }
 
-    const elapsed = Date.now() - start;
-    tab.resp      = await parseResponse(data, elapsed);
+    const status     = Number(proxyRes.headers.get('x-salvo-upstream-status')) || 0;
+    const statusText = decodeURIComponent(proxyRes.headers.get('x-salvo-upstream-statustext') || '');
+    let respHeaders  = {};
+    try { respHeaders = JSON.parse(atob(proxyRes.headers.get('x-salvo-upstream-headers') || '')) || {}; } catch {}
+
+    const isSSE = (respHeaders['content-type'] || '').includes('text/event-stream');
+
+    if (isSSE) {
+      // Stream Server-Sent Events live into tab.resp.events as they arrive.
+      tab.resp = { sse: true, status, statusText, headers: respHeaders, events: [], connected: true, elapsed: 0 };
+      if (activeTab() === tab) renderRespPanel();
+
+      const reader  = proxyRes.body.getReader();
+      const decoder = new TextDecoder('utf-8');
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const { events, remainder } = extractSseEvents(buffer);
+        buffer = remainder;
+        if (events.length) {
+          tab.resp.events.push(...events);
+          if (activeTab() === tab && tab.respTab === 'body') renderRespPanel();
+        }
+      }
+
+      tab.resp.connected = false;
+      tab.resp.elapsed   = Date.now() - start;
+
+    } else {
+      // Buffer the full body, then parse it like a normal response.
+      const reader = proxyRes.body.getReader();
+      const chunks = [];
+      let total = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        chunks.push(value);
+        total += value.length;
+      }
+      const bytes = new Uint8Array(total);
+      let offset = 0;
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+
+      const elapsed = Date.now() - start;
+      tab.resp = await parseResponse({ status, statusText, headers: respHeaders, bodyBase64: bytesToBase64(bytes) }, elapsed);
+
+      if (tab.req.testScript?.trim()) {
+        const { pm, testResults } = buildPmApi(tab.req, tab.resp);
+        try {
+          runScript(tab.req.testScript, pm);
+        } catch (e) {
+          testResults.push({ name: 'Test script error', passed: false, error: e.message });
+        }
+        tab.resp.testResults = testResults;
+      }
+    }
 
     // Log to history
     state.hist.push({
       method:  tab.req.method,
       url:     builtUrl,
-      status:  data.status,
-      elapsed,
+      status,
+      elapsed: tab.resp.elapsed,
     });
-
-    if (tab.req.testScript?.trim()) {
-      const { pm, testResults } = buildPmApi(tab.req, tab.resp);
-      try {
-        runScript(tab.req.testScript, pm);
-      } catch (e) {
-        testResults.push({ name: 'Test script error', passed: false, error: e.message });
-      }
-      tab.resp.testResults = testResults;
-    }
 
     if (state.showHist) renderHistPanel();
     scheduleDiskSave();
@@ -81,9 +130,15 @@ async function sendRequest() {
 
   } catch (err) {
     const elapsed = Date.now() - start;
-    tab.resp = err.name === 'AbortError'
-      ? { error: 'Request cancelled', elapsed }
-      : { error: err.message, elapsed };
+    if (tab.resp?.sse) {
+      tab.resp.connected = false;
+      tab.resp.elapsed   = elapsed;
+      if (err.name !== 'AbortError') tab.resp.error = err.message;
+    } else {
+      tab.resp = err.name === 'AbortError'
+        ? { error: 'Request cancelled', elapsed }
+        : { error: err.message, elapsed };
+    }
 
   } finally {
     tab.loading = false;
@@ -178,6 +233,57 @@ async function buildRequestArgs(req) {
   }
 
   return { url: urlObj.toString(), headers, bodyKind, bodyPayload, digestAuth };
+}
+
+// ─── SSE (Server-Sent Events) ──────────────────────────────────────────────────
+
+// Splits a decoded text buffer into complete SSE event blocks (separated by a
+// blank line) plus any trailing partial block. Pure function — exposed for
+// testing.
+function extractSseEvents(buffer) {
+  const normalized = buffer.replace(/\r\n/g, '\n');
+  const events = [];
+  let rest = normalized;
+  let sep;
+  while ((sep = rest.indexOf('\n\n')) !== -1) {
+    const evt = parseSseBlock(rest.slice(0, sep));
+    if (evt) events.push(evt);
+    rest = rest.slice(sep + 2);
+  }
+  return { events, remainder: rest };
+}
+
+// Parses a single SSE event block (lines joined by '\n', no trailing blank
+// line) into { event, data, id, retry }. Lines starting with ':' are
+// comments and ignored. Returns null for comment-only / empty blocks.
+function parseSseBlock(block) {
+  let event = 'message';
+  const data = [];
+  let id, retry, hasField = false;
+
+  for (const line of block.split('\n')) {
+    if (!line || line.startsWith(':')) continue;
+    hasField = true;
+
+    const sep = line.indexOf(':');
+    let field, value;
+    if (sep === -1) { field = line; value = ''; }
+    else {
+      field = line.slice(0, sep);
+      value = line.slice(sep + 1);
+      if (value.startsWith(' ')) value = value.slice(1);
+    }
+
+    switch (field) {
+      case 'event': event = value; break;
+      case 'data':  data.push(value); break;
+      case 'id':    id = value; break;
+      case 'retry': retry = Number(value); break;
+    }
+  }
+
+  if (!hasField) return null;
+  return { event, data: data.join('\n'), id, retry, receivedAt: Date.now() };
 }
 
 // ─── OAuth 2.0 token acquisition ───────────────────────────────────────────────
@@ -360,6 +466,17 @@ function base64ToBytes(b64) {
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes;
+}
+
+// Inverse of base64ToBytes. Chunked to avoid blowing the call stack on
+// String.fromCharCode(...bytes) for large responses.
+function bytesToBase64(bytes) {
+  const chunkSize = 0x8000;
+  let binary = '';
+  for (let i = 0; i < bytes.length; i += chunkSize) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+  }
+  return btoa(binary);
 }
 
 // Parses and pretty-prints JSON text in a Web Worker so large response

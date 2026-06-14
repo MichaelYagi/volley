@@ -30,6 +30,12 @@ function renderRespPanel() {
     return;
   }
 
+  // SSE stream — its own rendering path (handles its own status/error display)
+  if (resp.sse) {
+    renderSseRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exBtn);
+    return;
+  }
+
   // Network / abort error
   if (resp.error) {
     badge.style.display   = 'none';
@@ -120,6 +126,71 @@ function renderRespPanel() {
       ).join('');
     }
   }
+}
+
+// Renders an SSE response: a live-updating list of received events on the
+// Body tab, the upstream's response headers on the Headers tab, and a
+// connection status indicator in place of the usual timing display.
+function renderSseRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exBtn) {
+  copyBtn.style.display = 'none';
+  exBtn.style.display   = 'none';
+  sizeEl.style.display  = 'none';
+
+  if (resp.status) {
+    const color = statusColor(resp.status);
+    badge.style.display    = '';
+    badge.style.background = color + '22';
+    badge.style.color      = color;
+    badge.className        = 'status-badge';
+    badge.textContent      = `${resp.status} ${resp.statusText}`;
+  } else {
+    badge.style.display = 'none';
+  }
+
+  timeEl.style.display = '';
+  timeEl.textContent   = resp.status == null
+    ? 'Connecting…'
+    : (resp.connected ? 'Connected' : `Closed (${resp.elapsed}ms)`);
+
+  if (tab.respTab === 'headers') {
+    const entries = Object.entries(resp.headers || {});
+    wrap.innerHTML = entries.length
+      ? entries.map(([k, v]) =>
+          `<div style="margin-bottom:3px">
+            <span style="color:var(--json-key)">${esc(k)}</span>
+            <span style="color:var(--text-muted)">: </span>
+            <span>${esc(v)}</span>
+          </div>`
+        ).join('')
+      : `<span class="muted">No headers</span>`;
+    return;
+  }
+
+  if (tab.respTab === 'tests') {
+    wrap.innerHTML = `<span class="muted">Tests are not supported for SSE streams.</span>`;
+    return;
+  }
+
+  // Body tab — live event log
+  let html = '';
+  if (resp.error) {
+    html += `<div style="color:var(--danger);background:var(--danger-bg);border:1px solid var(--danger-border);border-radius:4px;padding:8px 12px;margin-bottom:8px">${esc(resp.error)}</div>`;
+  }
+  if (!resp.events.length) {
+    html += `<span class="muted">${resp.connected ? 'Waiting for events…' : 'No events received.'}</span>`;
+  } else {
+    html += resp.events.map(evt => `
+      <div class="sse-event">
+        <div class="sse-event-meta">
+          <span class="sse-event-name">${esc(evt.event)}</span>
+          ${evt.id != null ? `<span class="sse-event-id">id: ${esc(evt.id)}</span>` : ''}
+          <span class="sse-event-time">${new Date(evt.receivedAt).toLocaleTimeString()}</span>
+        </div>
+        <pre class="sse-event-data">${esc(evt.data)}</pre>
+      </div>`
+    ).join('');
+  }
+  wrap.innerHTML = html;
 }
 
 // Show a pass/fail summary badge on the "Tests" response tab.

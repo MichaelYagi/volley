@@ -431,3 +431,146 @@ test('GET /api/oauth/callback reports an error result and escapes "<" to prevent
   assert.match(html, /access_denied/);
   assert.match(html, /Authorization failed/);
 });
+
+// ─── /api/proxy-stream (SSE) ────────────────────────────────────────────────
+
+test('POST /api/proxy-stream streams an SSE response and forwards upstream status/headers', async () => {
+  const upstream = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/event-stream', 'X-Test': 'yes' });
+    res.write('event: ping\ndata: hello\n\n');
+    setTimeout(() => {
+      res.write('data: world\n\n');
+      res.end();
+    }, 10);
+  });
+  await new Promise(resolve => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamUrl = `http://127.0.0.1:${upstream.address().port}/`;
+
+  try {
+    const res = await fetch(`${base}/api/proxy-stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: upstreamUrl, method: 'GET', headers: {} }),
+    });
+    assert.strictEqual(res.status, 200);
+    assert.strictEqual(res.headers.get('x-salvo-stream'), 'ok');
+    assert.strictEqual(res.headers.get('x-salvo-upstream-status'), '200');
+
+    const upstreamHeaders = JSON.parse(Buffer.from(res.headers.get('x-salvo-upstream-headers'), 'base64').toString('utf8'));
+    assert.strictEqual(upstreamHeaders['x-test'], 'yes');
+
+    const text = await res.text();
+    assert.match(text, /event: ping\ndata: hello\n\n/);
+    assert.match(text, /data: world\n\n/);
+  } finally {
+    upstream.close();
+  }
+});
+
+test('POST /api/proxy-stream returns an error payload when the upstream is unreachable', async () => {
+  const res = await fetch(`${base}/api/proxy-stream`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url: 'http://127.0.0.1:1/', method: 'GET', headers: {} }),
+  });
+  assert.strictEqual(res.status, 200);
+  assert.strictEqual(res.headers.get('x-salvo-stream'), 'error');
+
+  const data = await res.json();
+  assert.strictEqual(data.ok, false);
+  assert.ok(data.error);
+});
+
+test('POST /api/proxy-stream transparently answers a Digest auth challenge', async () => {
+  const creds = { username: 'alice', password: 'secret' };
+  const realm = 'testrealm@host.com';
+  const nonce = 'dcd98b7102dd2f0e8b11d0f600bfb0c093';
+  const qop   = 'auth';
+
+  const upstream = http.createServer((req, res) => {
+    const auth = req.headers['authorization'];
+    if (!auth || !auth.startsWith('Digest')) {
+      res.writeHead(401, {
+        'WWW-Authenticate': `Digest realm="${realm}", nonce="${nonce}", qop="${qop}"`,
+      });
+      res.end();
+      return;
+    }
+
+    const sent = parseDigestChallenge(auth);
+    const md5  = s => require('crypto').createHash('md5').update(s).digest('hex');
+    const ha1  = md5(`${creds.username}:${realm}:${creds.password}`);
+    const ha2  = md5(`GET:/`);
+    const expectedResponse = md5(`${ha1}:${nonce}:${sent.nc}:${sent.cnonce}:${qop}:${ha2}`);
+
+    if (sent.username === creds.username && sent.response === expectedResponse) {
+      res.writeHead(200, { 'Content-Type': 'text/plain' });
+      res.end('authenticated');
+    } else {
+      res.writeHead(401);
+      res.end();
+    }
+  });
+  await new Promise(resolve => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamUrl = `http://127.0.0.1:${upstream.address().port}/`;
+
+  try {
+    const res = await fetch(`${base}/api/proxy-stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url: upstreamUrl, method: 'GET', headers: {},
+        digestAuth: creds,
+      }),
+    });
+    assert.strictEqual(res.headers.get('x-salvo-upstream-status'), '200');
+    assert.strictEqual(await res.text(), 'authenticated');
+  } finally {
+    upstream.close();
+  }
+});
+
+test('POST /api/proxy-stream stores Set-Cookie responses and resends them on later requests', async () => {
+  const receivedCookies = [];
+  const upstream = http.createServer((req, res) => {
+    receivedCookies.push(req.headers['cookie'] || null);
+    if (!req.headers['cookie']) {
+      res.writeHead(200, { 'Set-Cookie': ['session=abc123; Path=/', 'theme=dark; Path=/'] });
+    } else {
+      res.writeHead(200);
+    }
+    res.end('ok');
+  });
+  await new Promise(resolve => upstream.listen(0, '127.0.0.1', resolve));
+  const upstreamUrl = `http://127.0.0.1:${upstream.address().port}/`;
+
+  try {
+    await fetch(`${base}/api/proxy-stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: upstreamUrl, method: 'GET', headers: {} }),
+    });
+    assert.strictEqual(receivedCookies[0], null);
+
+    const jarRes = await fetch(`${base}/api/cookies`);
+    const { cookies } = await jarRes.json();
+    assert.deepStrictEqual(cookies.map(c => c.name).sort(), ['session', 'theme']);
+
+    await fetch(`${base}/api/proxy-stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: upstreamUrl, method: 'GET', headers: {} }),
+    });
+    assert.match(receivedCookies[1], /session=abc123/);
+    assert.match(receivedCookies[1], /theme=dark/);
+
+    // Clean up the jar so this test doesn't affect later ones.
+    await fetch(`${base}/api/cookies`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+  } finally {
+    upstream.close();
+  }
+});

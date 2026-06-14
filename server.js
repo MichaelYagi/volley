@@ -100,6 +100,48 @@ function cookieMatches(cookie, urlObj) {
   return true;
 }
 
+// Builds the body for a proxied fetch from the request's bodyKind/reqBody,
+// as sent by buildRequestArgs() (js/send.js). Shared by /api/proxy and
+// /api/proxy-stream.
+function buildFetchBody(bodyKind, reqBody) {
+  if (bodyKind === 'raw') return reqBody;
+  if (bodyKind === 'formdata') {
+    const fd = new FormData();
+    (reqBody || []).forEach(entry => {
+      if (entry.type === 'file' && entry.fileData) {
+        const buf  = Buffer.from(entry.fileData, 'base64');
+        const blob = new Blob([buf], { type: entry.fileMimeType || 'application/octet-stream' });
+        fd.append(entry.key, blob, entry.fileName || 'file');
+      } else {
+        fd.append(entry.key, entry.value);
+      }
+    });
+    return fd;
+  }
+  if (bodyKind === 'urlencoded') {
+    return new URLSearchParams((reqBody || []).map(({ key, value }) => [key, value]));
+  }
+  if (bodyKind === 'binary') {
+    return reqBody?.fileData ? Buffer.from(reqBody.fileData, 'base64') : undefined;
+  }
+  if (bodyKind === 'graphql') {
+    return JSON.stringify({ query: reqBody?.query || '', variables: reqBody?.variables || {} });
+  }
+  return undefined;
+}
+
+// Merges any jar cookies that match `reqUrl` into `headers`, returning the
+// (possibly new) headers object. Shared by /api/proxy and /api/proxy-stream.
+function attachJarCookies(headers, jar, reqUrl) {
+  const matched = jar.filter(c => cookieMatches(c, reqUrl));
+  if (!matched.length) return headers;
+
+  const cookieStr = matched.map(c => `${c.name}=${c.value}`).join('; ');
+  const cookieKey = Object.keys(headers || {}).find(k => k.toLowerCase() === 'cookie');
+  if (cookieKey) return { ...headers, [cookieKey]: `${headers[cookieKey]}; ${cookieStr}` };
+  return { ...headers, Cookie: cookieStr };
+}
+
 // Parse a single `Set-Cookie` header value into a jar entry.
 function parseSetCookie(str, defaultDomain) {
   const parts = String(str).split(';').map(p => p.trim()).filter(Boolean);
@@ -581,48 +623,15 @@ const server = http.createServer((req, res) => {
         let headers, reqBody, bodyKind, digestAuth, skipCookieJar;
         ({ url, method, headers, body: reqBody, bodyKind, digestAuth, skipCookieJar } = JSON.parse(body));
 
-        function buildFetchBody() {
-          if (bodyKind === 'raw') return reqBody;
-          if (bodyKind === 'formdata') {
-            const fd = new FormData();
-            (reqBody || []).forEach(entry => {
-              if (entry.type === 'file' && entry.fileData) {
-                const buf  = Buffer.from(entry.fileData, 'base64');
-                const blob = new Blob([buf], { type: entry.fileMimeType || 'application/octet-stream' });
-                fd.append(entry.key, blob, entry.fileName || 'file');
-              } else {
-                fd.append(entry.key, entry.value);
-              }
-            });
-            return fd;
-          }
-          if (bodyKind === 'urlencoded') {
-            return new URLSearchParams((reqBody || []).map(({ key, value }) => [key, value]));
-          }
-          if (bodyKind === 'binary') {
-            return reqBody?.fileData ? Buffer.from(reqBody.fileData, 'base64') : undefined;
-          }
-          if (bodyKind === 'graphql') {
-            return JSON.stringify({ query: reqBody?.query || '', variables: reqBody?.variables || {} });
-          }
-          return undefined;
-        }
-
         // Attach cookies from the jar that match this request's URL.
         const reqUrl = new URL(url);
         const jar     = skipCookieJar ? [] : loadCookies();
-        const matched = jar.filter(c => cookieMatches(c, reqUrl));
-        if (matched.length) {
-          const cookieStr  = matched.map(c => `${c.name}=${c.value}`).join('; ');
-          const cookieKey  = Object.keys(headers || {}).find(k => k.toLowerCase() === 'cookie');
-          if (cookieKey) headers[cookieKey] = `${headers[cookieKey]}; ${cookieStr}`;
-          else headers = { ...headers, Cookie: cookieStr };
-        }
+        headers = attachJarCookies(headers, jar, reqUrl);
 
         const doFetch = hdrs => fetch(url, {
           method,
           headers: hdrs,
-          body: ['GET', 'HEAD'].includes(method) ? undefined : buildFetchBody(),
+          body: ['GET', 'HEAD'].includes(method) ? undefined : buildFetchBody(bodyKind, reqBody),
         });
 
         const start = Date.now();
@@ -673,6 +682,91 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Streaming variant of /api/proxy for SSE (Server-Sent Events). Streams the
+  // upstream response body back as it arrives via chunked transfer-encoding;
+  // status/statusText/headers are passed via X-Salvo-* response headers since
+  // the body itself carries the raw event stream. js/send.js's connectSSE()
+  // parses the stream incrementally.
+  if (u.pathname === '/api/proxy-stream' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      let url, method;
+      try {
+        let headers, reqBody, bodyKind, digestAuth, skipCookieJar;
+        ({ url, method, headers, body: reqBody, bodyKind, digestAuth, skipCookieJar } = JSON.parse(body));
+
+        const reqUrl = new URL(url);
+        const jar     = skipCookieJar ? [] : loadCookies();
+        headers = attachJarCookies(headers, jar, reqUrl);
+
+        const upstreamAbort = new AbortController();
+        res.on('close', () => upstreamAbort.abort());
+
+        const doFetch = hdrs => fetch(url, {
+          method,
+          headers: hdrs,
+          body: ['GET', 'HEAD'].includes(method) ? undefined : buildFetchBody(bodyKind, reqBody),
+          signal: upstreamAbort.signal,
+        });
+
+        let upstream = await doFetch(headers);
+
+        // Transparently answer a Digest auth challenge and retry once.
+        if (digestAuth && upstream.status === 401) {
+          const challengeHeader = upstream.headers.get('www-authenticate') || '';
+          if (/digest/i.test(challengeHeader)) {
+            upstream.body?.cancel();
+            const challenge   = parseDigestChallenge(challengeHeader);
+            const uri         = reqUrl.pathname + reqUrl.search;
+            const digestValue = buildDigestHeader(digestAuth, method, uri, challenge);
+            upstream = await doFetch({ ...headers, Authorization: digestValue });
+          }
+        }
+
+        // Store any cookies the upstream server sets.
+        const setCookies = upstream.headers.getSetCookie?.() || [];
+        if (setCookies.length) {
+          for (const sc of setCookies) {
+            const cookie = parseSetCookie(sc, reqUrl.hostname);
+            if (cookie) updateJarCookie(jar, cookie);
+          }
+          saveCookies(jar);
+        }
+
+        const respHeaders = {};
+        upstream.headers.forEach((v, k) => { respHeaders[k] = v; });
+
+        res.writeHead(200, {
+          'Content-Type':               'text/event-stream; charset=utf-8',
+          'X-Salvo-Stream':             'ok',
+          'X-Salvo-Upstream-Status':     String(upstream.status),
+          'X-Salvo-Upstream-Statustext': encodeURIComponent(upstream.statusText || ''),
+          'X-Salvo-Upstream-Headers':    Buffer.from(JSON.stringify(respHeaders)).toString('base64'),
+        });
+
+        if (!upstream.body) { res.end(); return; }
+
+        const reader = upstream.body.getReader();
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            res.write(Buffer.from(value));
+          }
+        } catch (err) {
+          if (err.name !== 'AbortError') log('ERROR', `proxy-stream ${method} ${url} failed: ${err.message}`);
+        }
+        res.end();
+      } catch (err) {
+        log('ERROR', `proxy-stream ${method} ${url} failed: ${err.message}`);
+        res.writeHead(200, { 'Content-Type': 'application/json', 'X-Salvo-Stream': 'error' });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
   // Static file serving
   let filePath = path.join(ROOT, decodeURIComponent(u.pathname));
   if (u.pathname === '/') filePath = path.join(ROOT, 'index.html');
@@ -709,6 +803,7 @@ module.exports = {
   sanitizeName, uniqueName, buildColsFromFiles, walkDataDir, loadData, saveData, server,
   parseDigestChallenge, buildDigestHeader, normalizeEnvs, log,
   loadCookies, saveCookies, cookieMatches, parseSetCookie, updateJarCookie,
+  buildFetchBody, attachJarCookies,
   findMockMatch, createMockServer, startMockServer, stopMockServer, mockStatus,
   getCliArg,
 };

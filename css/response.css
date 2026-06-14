@@ -92,6 +92,15 @@
 .test-error   { margin: 4px 0 0 22px; color: var(--text-muted); font-family: monospace; font-size: 11px; }
 
 /* ─── History Panel ─────────────────────────────────────────────────────────── */
+/* ─── SSE event log ─────────────────────────────────────────────────────────── */
+.sse-event       { padding: 6px 0; border-bottom: 1px solid var(--bg-input); }
+.sse-event:last-child { border-bottom: none; }
+.sse-event-meta  { display: flex; gap: 8px; align-items: center; margin-bottom: 2px; font-size: 11px; }
+.sse-event-name  { color: var(--json-key); font-weight: 700; }
+.sse-event-id    { color: var(--text-muted); }
+.sse-event-time  { color: var(--text-muted); margin-left: auto; }
+.sse-event-data  { margin: 0; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-all; }
+
 #hist-panel { display: flex; flex-direction: column; height: 100%; }
 
 #hist-panel .hist-header {

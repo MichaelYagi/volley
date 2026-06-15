@@ -262,7 +262,9 @@ function handleMcpMessage(tab, data) {
   if (data?.id === tab.resp.initializeId && data.result) {
     if (data.result.protocolVersion) tab.resp.protocolVersion = data.result.protocolVersion;
     if (data.result.serverInfo)      tab.resp.serverInfo      = data.result.serverInfo;
+    tab.resp.status = 'open';
     mcpSend(tab, { jsonrpc: '2.0', method: 'notifications/initialized' });
+    if (activeTab() === tab) updateSendBtn();
   }
 
   if (activeTab() === tab) renderRespPanel();

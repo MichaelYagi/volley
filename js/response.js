@@ -22,6 +22,7 @@ function renderRespPanel() {
 
   updateTestsBadge(resp);
   teardownJsonTree(wrap);
+  wrap.classList.remove('mcp-body');
 
   // Nothing sent yet
   if (!resp) {
@@ -278,6 +279,13 @@ function renderWsRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exBt
 const MCP_STATUS_LABEL = { connecting: 'Connecting…', open: 'Connected', closed: 'Closed', error: 'Error' };
 
 function renderMcpRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exBtn) {
+  // Preserve scroll position across re-renders — new messages never force
+  // the transcript to jump to the bottom. First render starts at the top.
+  const prevScrollTop = resp._scroll ? resp._scroll.top : 0;
+  // First render: nothing is "unseen" yet — don't show the new-message banner
+  // for messages that were already there when the session was opened.
+  if (resp._seenCount === undefined) resp._seenCount = resp.messages.length;
+
   copyBtn.style.display = 'none';
   exBtn.style.display   = 'none';
   sizeEl.style.display  = 'none';
@@ -299,8 +307,23 @@ function renderMcpRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exB
     return;
   }
 
-  // Body tab — JSON-RPC transcript + composer
-  let html = '<div class="ws-transcript">';
+  // Body tab — method/params composer (fixed, non-scrolling) + scrollable
+  // JSON-RPC transcript below it.
+  wrap.classList.add('mcp-body');
+  const open = resp.status === 'open';
+  let html = `
+    <div class="mcp-composer">
+      <div class="mcp-composer-row">
+        <input id="mcp-method-input" list="mcp-methods" placeholder="method (e.g. tools/list)" value="tools/list" ${open ? '' : 'disabled'}>
+        <button class="btn-primary" onclick="sendMcpComposerMessage()" ${open ? '' : 'disabled'}>Send</button>
+      </div>
+      <datalist id="mcp-methods">
+        ${MCP_METHODS.map(m => `<option value="${esc(m)}">`).join('')}
+      </datalist>
+      <textarea id="mcp-params-input" placeholder="params (JSON)" rows="6" ${open ? '' : 'disabled'}>{}</textarea>
+    </div>`;
+
+  html += '<div class="mcp-transcript-wrap"><div class="ws-transcript">';
   if (resp.error) {
     html += `<div style="color:var(--danger);background:var(--danger-bg);border:1px solid var(--danger-border);border-radius:4px;padding:8px 12px;margin-bottom:8px">${esc(resp.error)}</div>`;
   }
@@ -324,25 +347,46 @@ function renderMcpRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exB
       </div>`;
     }).join('');
   }
-  html += '</div>';
-
-  const open = resp.status === 'open';
-  html += `
-    <div class="mcp-composer">
-      <div class="mcp-composer-row">
-        <input id="mcp-method-input" list="mcp-methods" placeholder="method (e.g. tools/list)" value="tools/list" ${open ? '' : 'disabled'}>
-        <button class="btn-primary" onclick="sendMcpComposerMessage()" ${open ? '' : 'disabled'}>Send</button>
-      </div>
-      <datalist id="mcp-methods">
-        ${MCP_METHODS.map(m => `<option value="${esc(m)}">`).join('')}
-      </datalist>
-      <textarea id="mcp-params-input" placeholder="params (JSON)" rows="2" ${open ? '' : 'disabled'}>{}</textarea>
-    </div>`;
+  html += '</div></div>';
 
   wrap.innerHTML = html;
 
-  const transcript = wrap.querySelector('.ws-transcript');
-  if (transcript) transcript.scrollTop = transcript.scrollHeight;
+  const transcriptWrap = wrap.querySelector('.mcp-transcript-wrap');
+  if (transcriptWrap) {
+    // Setting scrollTop on the freshly-created element fires an async
+    // 'scroll' event — ignore that one so it isn't mistaken for a user
+    // scroll (which would immediately dismiss the new-message banner below).
+    let ignoreNextScroll = prevScrollTop !== 0;
+    transcriptWrap.scrollTop = prevScrollTop;
+    resp._scroll = { top: transcriptWrap.scrollTop };
+
+    const atBottom = () =>
+      transcriptWrap.scrollHeight - transcriptWrap.scrollTop - transcriptWrap.clientHeight < 10;
+    if (atBottom()) resp._seenCount = resp.messages.length;
+
+    const dismissBanner = () => {
+      resp._seenCount = resp.messages.length;
+      wrap.querySelector('.mcp-new-msg-banner')?.remove();
+    };
+
+    transcriptWrap.addEventListener('scroll', () => {
+      if (ignoreNextScroll) { ignoreNextScroll = false; return; }
+      resp._scroll = { top: transcriptWrap.scrollTop };
+      if (atBottom()) dismissBanner();
+    });
+
+    if (resp.messages.length > resp._seenCount) {
+      const banner = document.createElement('div');
+      banner.className = 'mcp-new-msg-banner';
+      banner.textContent = 'New response ↓';
+      banner.onclick = () => {
+        transcriptWrap.scrollTop = transcriptWrap.scrollHeight;
+        resp._scroll = { top: transcriptWrap.scrollTop };
+        dismissBanner();
+      };
+      wrap.appendChild(banner);
+    }
+  }
 }
 
 // Show a pass/fail summary badge on the "Tests" response tab.

@@ -112,6 +112,7 @@ async function init() {
   renderEnvSelect();
   renderSidebar();
   setupResizer();
+  setupPanelResizer();
   if (activeTab()) showReqEditor();
   else showEmptyState();
   document.addEventListener('click', hideCtxMenu);
@@ -150,6 +151,35 @@ function setupResizer() {
     if (!dragging) return;
     const w = Math.max(180, Math.min(420, startW + e.clientX - startX));
     sidebar.style.width = w + 'px';
+  });
+
+  document.addEventListener('mouseup', () => {
+    dragging = false;
+    document.body.style.userSelect = '';
+  });
+}
+
+// ─── Request/Response Drag-to-Resize ──────────────────────────────────────────
+
+function setupPanelResizer() {
+  const resizer  = document.getElementById('panel-resizer');
+  const reqPanel = document.getElementById('req-panel');
+  const editor   = document.getElementById('req-editor');
+  let dragging = false;
+  let startY, startH;
+
+  resizer.addEventListener('mousedown', e => {
+    dragging = true;
+    startY   = e.clientY;
+    startH   = reqPanel.offsetHeight;
+    document.body.style.userSelect = 'none';
+  });
+
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const max = editor.offsetHeight - resizer.offsetHeight - 80;
+    const h   = Math.max(80, Math.min(max, startH + e.clientY - startY));
+    reqPanel.style.flex = `0 0 ${h}px`;
   });
 
   document.addEventListener('mouseup', () => {

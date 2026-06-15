@@ -192,18 +192,29 @@ function renderSseRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exB
   if (!resp.events.length) {
     html += `<span class="muted">${resp.connected ? 'Waiting for events…' : 'No events received.'}</span>`;
   } else {
-    html += resp.events.map(evt => `
+    html += resp.events.map((evt, i) => `
       <div class="sse-event">
         <div class="sse-event-meta">
           <span class="sse-event-name">${esc(evt.event)}</span>
           ${evt.id != null ? `<span class="sse-event-id">id: ${esc(evt.id)}</span>` : ''}
           <span class="sse-event-time">${new Date(evt.receivedAt).toLocaleTimeString()}</span>
         </div>
-        <pre class="sse-event-data">${esc(evt.data)}</pre>
+        <div class="sse-event-data" data-evt-index="${i}"></div>
       </div>`
     ).join('');
   }
   wrap.innerHTML = html;
+
+  // Render each event's data as a collapsible tree if it's JSON, otherwise
+  // leave it as plain text.
+  resp.events.forEach((evt, i) => {
+    const container = wrap.querySelector(`.sse-event-data[data-evt-index="${i}"]`);
+    if (!container) return;
+    let parsed;
+    try { parsed = JSON.parse(evt.data); } catch { /* not JSON */ }
+    if (parsed !== null && typeof parsed === 'object') container.appendChild(buildJsonTreeStatic(parsed));
+    else container.textContent = evt.data;
+  });
 }
 
 // Renders a WebSocket connection: a live transcript of sent/received messages
@@ -238,7 +249,7 @@ function renderWsRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exBt
   if (!resp.messages.length) {
     html += `<span class="muted">${resp.status === 'connecting' ? 'Connecting…' : 'No messages yet.'}</span>`;
   } else {
-    html += resp.messages.map(m => {
+    html += resp.messages.map((m, i) => {
       if (m.dir === 'system') {
         return `<div class="ws-msg ws-msg-system">
           <span class="ws-msg-time">${new Date(m.time).toLocaleTimeString()}</span>
@@ -246,13 +257,21 @@ function renderWsRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exBt
         </div>`;
       }
       const dirLabel = m.dir === 'sent' ? '↑ sent' : '↓ received';
-      const body     = m.binary ? `(binary, base64) ${m.data}` : m.data;
+      if (m.binary) {
+        return `<div class="ws-msg ws-msg-${m.dir}">
+          <div class="ws-msg-meta">
+            <span class="ws-msg-dir">${dirLabel}</span>
+            <span class="ws-msg-time">${new Date(m.time).toLocaleTimeString()}</span>
+          </div>
+          <pre class="ws-msg-data">(binary, base64) ${esc(m.data)}</pre>
+        </div>`;
+      }
       return `<div class="ws-msg ws-msg-${m.dir}">
         <div class="ws-msg-meta">
           <span class="ws-msg-dir">${dirLabel}</span>
           <span class="ws-msg-time">${new Date(m.time).toLocaleTimeString()}</span>
         </div>
-        <pre class="ws-msg-data">${esc(body)}</pre>
+        <div class="ws-msg-data" data-msg-index="${i}"></div>
       </div>`;
     }).join('');
   }
@@ -267,6 +286,18 @@ function renderWsRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exBt
     </div>`;
 
   wrap.innerHTML = html;
+
+  // Render each message's data as a collapsible tree if it's JSON, otherwise
+  // leave it as plain text.
+  resp.messages.forEach((m, i) => {
+    if (m.dir === 'system' || m.binary) return;
+    const container = wrap.querySelector(`.ws-msg-data[data-msg-index="${i}"]`);
+    if (!container) return;
+    let parsed;
+    try { parsed = JSON.parse(m.data); } catch { /* not JSON */ }
+    if (parsed !== null && typeof parsed === 'object') container.appendChild(buildJsonTreeStatic(parsed));
+    else container.textContent = m.data;
+  });
 
   const transcript = wrap.querySelector('.ws-transcript');
   if (transcript) transcript.scrollTop = transcript.scrollHeight;

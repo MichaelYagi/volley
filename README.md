@@ -440,4 +440,4 @@ Pure HTML, CSS, and JavaScript on the front end, plus a single stdlib-only Node 
 
 ## License
 
-[MIT](LICENSE) — © 2026 Michael Yagi
+[MIT](LICENSE) — © 2026 Michael Yagi.

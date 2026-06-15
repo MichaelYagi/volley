@@ -229,7 +229,20 @@
 .comment-meta   { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
 .comment-author { font-weight: 600; color: var(--text-bright); }
 .comment-date   { color: var(--text-muted); font-size: 11px; }
-.comment-del    { margin-left: auto; color: var(--danger); padding: 0 4px; }
+.comment-actions  { margin-left: auto; display: flex; gap: 4px; }
+.comment-edit-btn { color: var(--text-muted); font-size: 11px; padding: 0 4px; }
+.comment-edit-btn:hover { color: var(--accent); }
+.comment-del    { color: var(--danger); padding: 0 4px; }
+.comment-edit-area {
+  width: 100%;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  min-height: 60px;
+  padding: 6px 8px;
+  resize: vertical;
+}
+.comment-edit-actions { display: flex; gap: 6px; margin-top: 6px; }
 .comment-text   { color: var(--text); white-space: pre-wrap; word-break: break-word; }
 
 .comment-add { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }

@@ -1238,16 +1238,36 @@ function docsHTML(req) {
   if (!req.comments.length) {
     html += `<p class="muted">No comments yet.</p>`;
   } else {
+    const editingId = activeTab().editingCommentId;
     req.comments.forEach(c => {
-      html += `
-        <div class="comment-item">
-          <div class="comment-meta">
-            <span class="comment-author">${esc(c.author || 'Anonymous')}</span>
-            <span class="comment-date">${esc(new Date(c.createdAt).toLocaleString())}</span>
-            <button class="comment-del" onclick="deleteComment('${c.id}')">×</button>
-          </div>
-          <div class="comment-text">${esc(c.text)}</div>
-        </div>`;
+      const dateLabel = esc(new Date(c.createdAt).toLocaleString()) + (c.editedAt ? ' (edited)' : '');
+      if (c.id === editingId) {
+        html += `
+          <div class="comment-item">
+            <div class="comment-meta">
+              <span class="comment-author">${esc(c.author || 'Anonymous')}</span>
+              <span class="comment-date">${dateLabel}</span>
+            </div>
+            <textarea id="comment-edit-${c.id}" class="comment-edit-area">${esc(c.text)}</textarea>
+            <div class="comment-edit-actions">
+              <button class="btn-primary" onclick="saveEditComment('${c.id}')">Save</button>
+              <button onclick="cancelEditComment()">Cancel</button>
+            </div>
+          </div>`;
+      } else {
+        html += `
+          <div class="comment-item">
+            <div class="comment-meta">
+              <span class="comment-author">${esc(c.author || 'Anonymous')}</span>
+              <span class="comment-date">${dateLabel}</span>
+              <div class="comment-actions">
+                <button class="comment-edit-btn" onclick="startEditComment('${c.id}')">Edit</button>
+                <button class="comment-del" onclick="deleteComment('${c.id}')">×</button>
+              </div>
+            </div>
+            <div class="comment-text">${esc(c.text)}</div>
+          </div>`;
+      }
     });
   }
 
@@ -1280,6 +1300,30 @@ function addComment() {
   activeTab().req.comments.push({ id: uid(), author, text, createdAt: Date.now() });
   scheduleAutoSave();
   updateTabBadges();
+  renderReqPanel();
+}
+
+function startEditComment(id) {
+  activeTab().editingCommentId = id;
+  renderReqPanel();
+}
+
+function cancelEditComment() {
+  activeTab().editingCommentId = null;
+  renderReqPanel();
+}
+
+function saveEditComment(id) {
+  const tab = activeTab();
+  const textEl = document.getElementById(`comment-edit-${id}`);
+  const text = textEl.value.trim();
+  if (!text) return;
+  const comment = tab.req.comments.find(c => c.id === id);
+  if (!comment) return;
+  comment.text = text;
+  comment.editedAt = Date.now();
+  tab.editingCommentId = null;
+  scheduleAutoSave();
   renderReqPanel();
 }
 

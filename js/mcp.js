@@ -284,5 +284,9 @@ function sendMcpComposerMessage() {
   const msg = { jsonrpc: '2.0', id: nextMcpId(tab), method: methodInput.value.trim() };
   if (params !== undefined) msg.params = params;
 
+  // Remember the last method/params so the composer keeps showing them
+  // (e.g. a tool name + its input schema) until another request is sent.
+  tab.resp._lastComposer = { method: msg.method, params: paramsInput.value };
+
   mcpSend(tab, msg);
 }

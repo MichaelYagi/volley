@@ -314,13 +314,13 @@ function renderMcpRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exB
   let html = `
     <div class="mcp-composer">
       <div class="mcp-composer-row">
-        <input id="mcp-method-input" list="mcp-methods" placeholder="method (e.g. tools/list)" value="tools/list" ${open ? '' : 'disabled'}>
+        <input id="mcp-method-input" list="mcp-methods" placeholder="method (e.g. tools/list)" value="${esc(resp._lastComposer?.method ?? 'tools/list')}" ${open ? '' : 'disabled'}>
         <button class="btn-primary" onclick="sendMcpComposerMessage()" ${open ? '' : 'disabled'}>Send</button>
       </div>
       <datalist id="mcp-methods">
         ${MCP_METHODS.map(m => `<option value="${esc(m)}">`).join('')}
       </datalist>
-      <textarea id="mcp-params-input" placeholder="params (JSON)" rows="6" ${open ? '' : 'disabled'}>{}</textarea>
+      <textarea id="mcp-params-input" placeholder="params (JSON)" rows="6" ${open ? '' : 'disabled'}>${esc(resp._lastComposer?.params ?? '{}')}</textarea>
     </div>`;
 
   html += '<div class="mcp-transcript-wrap"><div class="ws-transcript">';
@@ -380,8 +380,8 @@ function renderMcpRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exB
       banner.className = 'mcp-new-msg-banner';
       banner.textContent = 'New response ↓';
       banner.onclick = () => {
-        transcriptWrap.scrollTop = transcriptWrap.scrollHeight;
-        resp._scroll = { top: transcriptWrap.scrollTop };
+        transcriptWrap.scrollTo({ top: transcriptWrap.scrollHeight, behavior: 'smooth' });
+        resp._scroll = { top: transcriptWrap.scrollHeight };
         dismissBanner();
       };
       wrap.appendChild(banner);

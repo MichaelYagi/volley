@@ -257,7 +257,7 @@ Configure auth on the **Auth** tab of a request. Salvo supports:
 - **Digest Auth** — set **Username**/**Password**. Salvo sends the request, and if the server responds with a `WWW-Authenticate: Digest` challenge, transparently retries with the computed digest response — no manual nonce handling needed.
 - **JWT Bearer (HS256)** — set a **Secret** and a JSON **payload** (e.g. `{"sub":"user123"}`). Salvo signs a fresh HS256 JWT at send time, adding `iat`/`exp` (1 hour) automatically if you don't specify them, and sends it as `Authorization: Bearer <jwt>`.
 
-For OAuth2, the fetched token is cached on the request (`cachedToken`/`cachedExpiry`) and reused until it expires.
+For OAuth2, the fetched token is cached on the request (`cachedToken`/`cachedExpiry`) and reused until it expires. The resulting `Authorization: Bearer <token>` header is shown read-only under "Auto-generated" on the Headers tab (uncheck it there to omit it from the request).
 
 ## Realtime & streaming protocols
 
@@ -287,8 +287,19 @@ Salvo includes a small built-in MCP client for talking to MCP servers directly f
 Either way, click **Connect** to perform the `initialize` handshake (Salvo sends `initialize` then `notifications/initialized` automatically). Once connected:
 
 - The response panel shows the JSON-RPC message transcript (sent and received), plus the connected server's name/version once known.
-- A composer lets you pick a method (autocompleted from common MCP methods like `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`) and supply a JSON `params` object, then send it as a new JSON-RPC request.
+- A composer lets you pick a method (autocompleted from common MCP methods like `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`) and supply a JSON `params` object, then send it as a new JSON-RPC request. Salvo wraps your method/params in the full `{"jsonrpc":"2.0","id":<auto>,...}` envelope.
 - Click **Disconnect**, or close the tab, to end the session.
+
+For example, after `tools/list` shows you a tool's name and input schema, call it with `tools/call` and a params object like:
+
+```json
+{
+  "name": "read_wiki_contents",
+  "arguments": { "repoName": "owner/repo" }
+}
+```
+
+If you've scrolled up in the transcript, new messages arrive without yanking your scroll position — a "New response ↓" banner appears until you scroll to (or click it to jump to) the bottom.
 
 ## Pre-request & Test Scripts
 

@@ -160,6 +160,7 @@ function newRequestTemplate() {
     name:    'New Request',
     method:  'GET',
     url:     '',
+    protocol: 'http',
     headers: [],
     params:  [],
     pathVars: [],

@@ -26,6 +26,8 @@ function syncReqEditor() {
   ms.style.color = MC[r.method] || 'var(--text)';
   document.getElementById('url-input').value      = r.url;
   document.getElementById('req-name-input').value = r.name;
+  document.getElementById('protocol-select').value = r.protocol || 'http';
+  applyProtocolUI(r.protocol || 'http');
   syncPathVarsFromUrl();
   updateTabBadges();
   renderReqPanel();
@@ -33,7 +35,22 @@ function syncReqEditor() {
   updateSendBtn();
 }
 
-// ─── Method / name change handlers (called from inline HTML events) ───────────
+// Shows/hides the method selector and swaps the URL field's placeholder
+// based on the request's protocol (mcp-stdio uses the URL field as a
+// command line, so the HTTP method is meaningless there).
+function applyProtocolUI(protocol) {
+  const ms  = document.getElementById('method-select');
+  const url = document.getElementById('url-input');
+  if (protocol === 'mcp-stdio') {
+    ms.style.display = 'none';
+    url.placeholder  = 'node mcp-server.js --flag {{var}}';
+  } else {
+    ms.style.display = '';
+    url.placeholder  = 'https://api.example.com/endpoint {{var}}';
+  }
+}
+
+// ─── Method / protocol / name change handlers (called from inline HTML events) ─
 
 function onMethodChange() {
   const tab = activeTab();
@@ -46,6 +63,16 @@ function onMethodChange() {
 
   const r = findReq(tab.reqId);
   if (r) { r.method = v; renderSidebar(); }
+}
+
+function onProtocolChange() {
+  const tab = activeTab();
+  const v = document.getElementById('protocol-select').value;
+  tab.req.protocol = v;
+  applyProtocolUI(v);
+  scheduleAutoSave();
+  renderReqPanel();
+  updateSendBtn();
 }
 
 function onReqNameChange(v) {

@@ -69,7 +69,7 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 - **Full request editing** — method, URL, query params, headers, auth, and body (raw JSON/XML/text, form-data with file uploads, x-www-form-urlencoded, raw binary, GraphQL)
 - **Server-Sent Events (SSE)** — any response with `Content-Type: text/event-stream` switches the response panel to a live-updating event log instead of a single body. See [Server-Sent Events](#server-sent-events-sse).
 - **WebSocket** — open a `ws://`/`wss://` URL to get a Connect/Disconnect button and a message transcript + composer instead of the usual send/response flow. See [WebSocket](#websocket).
-- **MCP (Model Context Protocol)** — talk to an MCP server over Streamable HTTP (`mcp+http://`/`mcp+https://`) or stdio (`mcp+stdio://<command line>`), with the `initialize` handshake handled automatically and a JSON-RPC transcript + composer. See [MCP](#mcp-model-context-protocol).
+- **MCP (Model Context Protocol)** — talk to an MCP server over Streamable HTTP or stdio, selected via the Protocol dropdown, with the `initialize` handshake handled automatically and a JSON-RPC transcript + composer. See [MCP](#mcp-model-context-protocol).
 - **URL ↔ Params sync** — editing the URL's query string updates the Params table and vice versa, like Postman.
 - **Path variables** — `:name` segments in the URL (e.g. `/users/:id`) show up as an editable "Path Variables" table on the Params tab; the names come from the URL, you fill in the values, and they're substituted in when the request is sent (and in the cURL preview).
 - **Auto-generated headers preview** — the Headers tab shows a read-only "Auto-generated" section previewing the `Authorization`/API key header from the Auth tab, the `Content-Type` the Body tab will add, and any `Cookie` header the cookie jar will attach for this request's domain. A manual header that will be silently overridden by the Auth tab (e.g. a hand-typed `Authorization`) is highlighted with a warning.
@@ -124,7 +124,7 @@ salvo/
     ├── response.js         — response panel rendering, DOM-based JSON tree, SSE/WebSocket/MCP transcripts
     ├── send.js             — request execution (via /api/proxy), response parsing, SSE parsing, OAuth2 flows
     ├── websocket.js        — WebSocket client (ws://, wss://), relayed through the local server
-    ├── mcp.js              — MCP client (mcp+http://, mcp+https://, mcp+stdio://)
+    ├── mcp.js              — MCP client (Streamable HTTP and stdio transports, via req.protocol)
     ├── collections.js      — collection/folder/request CRUD, Postman & Salvo import/export
     ├── modals.js           — environment & global variables modal
     ├── runner.js           — Collection Runner (run a collection/folder, CSV/JSON data files, results modal)
@@ -150,6 +150,7 @@ All JS files share the global scope and load in order. `state.js` must be first 
   "name": "Get user",
   "method": "GET",
   "url": "https://api.example.com/users/:userId",
+  "protocol": "http",
   "description": "Fetches a single user by id.",
   "params":  [{ "id": "x", "key": "include", "value": "profile", "enabled": true, "note": "" }],
   "pathVars": [{ "id": "z", "key": "userId", "value": "123" }],
@@ -278,10 +279,10 @@ Headers and auth configured on the request (e.g. a `Sec-WebSocket-Protocol` or `
 
 ### MCP (Model Context Protocol)
 
-Salvo includes a small built-in MCP client for talking to MCP servers directly from a request tab, supporting both transports:
+Salvo includes a small built-in MCP client for talking to MCP servers directly from a request tab. Pick the transport from the **Protocol** dropdown in the URL bar:
 
-- **Streamable HTTP** — set the URL to `mcp+http://` or `mcp+https://` followed by the server's endpoint (e.g. `mcp+https://mcp.deepwiki.com/mcp`). The `mcp+` prefix is stripped before the request is sent, and it's proxied server-side via the same mechanism as a normal request (no CORS issues).
-- **stdio** — set the URL to `mcp+stdio://<command line>` (e.g. `mcp+stdio://npx -y @some/mcp-server`). Salvo spawns that command as a local child process and speaks newline-delimited JSON-RPC over its stdin/stdout.
+- **MCP · Streamable HTTP** — enter the server's endpoint as a normal URL (e.g. `https://mcp.deepwiki.com/mcp`). It's proxied server-side via the same mechanism as a normal request (no CORS issues).
+- **MCP · stdio** — the URL field becomes a command line (e.g. `npx -y @some/mcp-server`). Salvo spawns that command as a local child process and speaks newline-delimited JSON-RPC over its stdin/stdout.
 
 Either way, click **Connect** to perform the `initialize` handshake (Salvo sends `initialize` then `notifications/initialized` automatically). Once connected:
 

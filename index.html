@@ -99,6 +99,11 @@
 
         <!-- URL bar -->
         <div id="url-bar">
+          <select id="protocol-select" onchange="onProtocolChange()">
+            <option value="http">HTTP</option>
+            <option value="mcp-http">MCP · Streamable HTTP</option>
+            <option value="mcp-stdio">MCP · stdio</option>
+          </select>
           <select id="method-select" onchange="onMethodChange()">
             <option>GET</option>
             <option>POST</option>

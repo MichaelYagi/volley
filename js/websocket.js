@@ -112,7 +112,7 @@ function updateSendBtn() {
       btn.textContent = 'Connect';
       btn.onclick     = sendRequest;
     }
-  } else if (isMcpUrl(tab.req.url)) {
+  } else if (isMcpUrl(tab.req)) {
     if (tab.resp?.mcp && (tab.resp.status === 'open' || tab.resp.status === 'connecting')) {
       btn.textContent = 'Disconnect';
       btn.onclick     = () => disconnectMcp(tab);

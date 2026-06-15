@@ -1,22 +1,21 @@
 // ─── MCP (Model Context Protocol) ────────────────────────────────────────────
 // Salvo includes a small built-in MCP client for two transports, selected by
-// URL scheme:
+// req.protocol:
 //
-// - mcp+http:// / mcp+https://  -- Streamable HTTP transport. Strip the
-//   `mcp+` prefix to get the real endpoint and POST JSON-RPC messages via
-//   /api/proxy-stream (so both plain-JSON and SSE responses are handled).
-//   The `Mcp-Session-Id` response header (if any) is captured and replayed on
-//   subsequent requests, and the negotiated `protocolVersion` is sent back as
+// - 'mcp-http'  -- Streamable HTTP transport. req.url is a normal
+//   https://... endpoint; POST JSON-RPC messages to it via /api/proxy-stream
+//   (so both plain-JSON and SSE responses are handled). The `Mcp-Session-Id`
+//   response header (if any) is captured and replayed on subsequent
+//   requests, and the negotiated `protocolVersion` is sent back as
 //   `MCP-Protocol-Version`.
-// - mcp+stdio://<command line>  -- everything after the scheme is a shell
-//   command line; Salvo spawns it as a local child process via
-//   /api/mcp-stdio (see server.js) and speaks newline-delimited JSON-RPC over
-//   its stdin/stdout.
+// - 'mcp-stdio' -- req.url holds a shell command line; Salvo spawns it as a
+//   local child process via /api/mcp-stdio (see server.js) and speaks
+//   newline-delimited JSON-RPC over its stdin/stdout.
 //
 // Either way, Connect performs the `initialize` handshake (and sends
 // `notifications/initialized`), then the composer lets you send arbitrary
 // JSON-RPC requests/notifications and view the transcript. sendRequest()
-// (js/send.js) detects the scheme via isMcpUrl() and delegates here instead
+// (js/send.js) detects the protocol via isMcpUrl() and delegates here instead
 // of doing a fetch.
 
 const MCP_PROTOCOL_VERSION = '2025-06-18';
@@ -28,14 +27,14 @@ const MCP_METHODS = [
   'completion/complete', 'logging/setLevel', 'ping',
 ];
 
-// True if `url` (after {{var}} interpolation) uses the mcp+http(s):// or
-// mcp+stdio:// scheme.
-function isMcpUrl(url) {
-  return /^mcp\+(https?|stdio):\/\//i.test(interp(url || ''));
+// True if `req` should be handled as an MCP session rather than a normal
+// HTTP request.
+function isMcpUrl(req) {
+  return req.protocol === 'mcp-http' || req.protocol === 'mcp-stdio';
 }
 
-function mcpTransport(url) {
-  return /^mcp\+stdio:\/\//i.test(interp(url || '')) ? 'stdio' : 'http';
+function mcpTransport(req) {
+  return req.protocol === 'mcp-stdio' ? 'stdio' : 'http';
 }
 
 // Splits a shell-style command line into argv, honoring "..." and '...' quoting.
@@ -69,7 +68,7 @@ async function connectMcp(tab) {
   if (tab.mcpConnecting) return;
   if (tab.resp?.mcp && (tab.resp.status === 'open' || tab.resp.status === 'connecting')) return;
 
-  const transport = mcpTransport(tab.req.url);
+  const transport = mcpTransport(tab.req);
   tab.resp = {
     mcp: true, transport, status: 'connecting', messages: [],
     sessionId: null, protocolVersion: null, serverInfo: null,
@@ -93,16 +92,15 @@ async function connectMcp(tab) {
   if (activeTab() === tab) updateSendBtn();
 }
 
-// Spawns the command after `mcp+stdio://` as a local child process via the
+// Spawns the command line in req.url as a local child process via the
 // /api/mcp-stdio relay (see server.js) and wires up the JSON-RPC handshake.
 function connectMcpStdio(tab) {
-  const raw     = interp(tab.req.url);
-  const cmdline = raw.replace(/^mcp\+stdio:\/\//i, '').trim();
+  const cmdline = interp(tab.req.url).trim();
   const [command, ...args] = splitCommandLine(cmdline);
 
   if (!command) {
     tab.resp.status = 'error';
-    tab.resp.error  = 'No command specified after mcp+stdio://';
+    tab.resp.error  = 'No command specified';
     tab.resp.messages.push({ dir: 'system', text: tab.resp.error, time: Date.now() });
     if (activeTab() === tab) renderRespPanel();
     return;
@@ -198,13 +196,12 @@ async function mcpSend(tab, msg) {
   }
 }
 
-// Posts a single JSON-RPC message to the mcp+http(s):// endpoint via
-// /api/proxy-stream, handling both a plain JSON response and an SSE response
-// containing one or more JSON-RPC messages.
+// Posts a single JSON-RPC message to the MCP endpoint via /api/proxy-stream,
+// handling both a plain JSON response and an SSE response containing one or
+// more JSON-RPC messages.
 async function sendMcpHttp(tab, msg) {
   try {
-    const { url: target, headers } = await buildRequestArgs(tab.req);
-    const endpoint = target.replace(/^mcp\+/i, '');
+    const { url: endpoint, headers } = await buildRequestArgs(tab.req);
 
     const reqHeaders = {
       ...headers,

@@ -24,7 +24,7 @@ node server.js --port=3000
 - `GET /api/data` — reads `data/` and returns `{ cols, envs, hist }`
 - `POST /api/save` — accepts `{ cols, envs, hist }` and writes it back to `data/`
 - `/api/ws-proxy` (WebSocket upgrade) — relays a browser WebSocket connection to an upstream `ws(s)://` target (see `js/websocket.js`)
-- `/api/mcp-stdio` (WebSocket upgrade) — spawns a local child process for `mcp+stdio://` URLs and relays newline-delimited JSON-RPC over its stdin/stdout (see `js/mcp.js`)
+- `/api/mcp-stdio` (WebSocket upgrade) — spawns a local child process for `mcp-stdio` protocol requests and relays newline-delimited JSON-RPC over its stdin/stdout (see `js/mcp.js`)
 
 A plain static server (e.g. `python3 -m http.server`) won't work — Salvo needs these API endpoints to load and save its data.
 
@@ -148,7 +148,8 @@ and per-tab `reqTab` survive a refresh.
   id: String,
   name: String,
   method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS',
-  url: String,                          // may contain {{variables}}
+  url: String,                          // may contain {{variables}}; a shell command line when protocol is 'mcp-stdio'
+  protocol: 'http' | 'mcp-http' | 'mcp-stdio',
   params:  [{ id, key, value, enabled, note }],
   headers: [{ id, key, value, enabled, note }],
   body: {
@@ -190,7 +191,7 @@ older saved requests get the new fields with sane defaults.
 
 **Tab rendering** — `renderReqPanel()` is the single dispatcher for the request editor panel. Adding a new tab means: adding a button to `#req-tabbar` in `index.html`, adding a case in the `switch` in `renderReqPanel()`, and implementing the HTML-returning function.
 
-**Non-HTTP URL schemes** — `sendRequest()` (`js/send.js`) dispatches on the request URL's scheme before falling back to a normal `fetch`: `ws://`/`wss://` (`isWsUrl()`) go to `connectWs()`, and `mcp+http://`/`mcp+https://`/`mcp+stdio://` (`isMcpUrl()`) go to `connectMcp()`. Both replace the usual send/response flow with a persistent session: a Connect/Disconnect button (`updateSendBtn()` in `js/websocket.js`) and a transcript + composer in the response panel (`renderRespPanel()` in `js/response.js`). For MCP, `mcp+http(s)://` strips the `mcp+` prefix and speaks the Streamable HTTP transport via `/api/proxy-stream`; `mcp+stdio://<command line>` spawns that command line as a local child process via the `/api/mcp-stdio` WebSocket relay and speaks newline-delimited JSON-RPC over its stdin/stdout.
+**Non-HTTP protocols** — `sendRequest()` (`js/send.js`) dispatches before falling back to a normal `fetch`: `req.protocol === 'mcp-http' | 'mcp-stdio'` (`isMcpUrl()`) go to `connectMcp()`, and `ws://`/`wss://` URLs (`isWsUrl()`) go to `connectWs()`. Both replace the usual send/response flow with a persistent session: a Connect/Disconnect button (`updateSendBtn()` in `js/websocket.js`) and a transcript + composer in the response panel (`renderRespPanel()` in `js/response.js`). For MCP, `req.protocol` is chosen via the "Protocol" dropdown in `#url-bar`: `mcp-http` treats `req.url` as a normal `https://...` endpoint and speaks the Streamable HTTP transport via `/api/proxy-stream`; `mcp-stdio` treats `req.url` as a shell command line, spawning it as a local child process via the `/api/mcp-stdio` WebSocket relay and speaking newline-delimited JSON-RPC over its stdin/stdout.
 
 ## Things to be aware of
 

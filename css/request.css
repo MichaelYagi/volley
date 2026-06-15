@@ -44,6 +44,7 @@
   flex-shrink: 0;
 }
 #url-bar select { width: 96px; font-weight: 700; padding: 5px 4px; flex-shrink: 0; }
+#url-bar #protocol-select { width: 130px; font-weight: 400; }
 #url-bar input  { flex: 1; font-size: 13px; font-family: monospace; padding: 5px 10px; }
 #send-btn       { flex-shrink: 0; }
 
@@ -283,6 +284,7 @@
 /* ─── Responsive (tablet & phone) ───────────────────────────────────────────── */
 @media (max-width: 860px) {
   #url-bar select { width: 76px; }
+  #url-bar #protocol-select { width: 110px; }
   #url-bar input  { min-width: 0; }
 
   #req-name-input { width: 120px; }

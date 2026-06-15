@@ -117,6 +117,7 @@ function normalizeReq(r) {
     name:    r.name || 'Untitled',
     method:  (r.method || 'GET').toUpperCase(),
     url:     r.url || '',
+    protocol: r.protocol || 'http',
     params:  r.params  || [],
     pathVars: r.pathVars || [],
     headers: r.headers || [],

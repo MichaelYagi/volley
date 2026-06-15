@@ -964,6 +964,11 @@ const server = http.createServer((req, res) => {
   });
 });
 
+// Cleanup callbacks for active /api/ws-proxy and /api/mcp-stdio relay
+// connections (closes the upstream socket / kills the spawned child), so
+// shutdown() can tear them down instead of leaving them as orphans.
+const activeRelays = new Set();
+
 // ─── WebSocket / MCP-stdio relay endpoints ─────────────────────────────────────
 // Both /api/ws-proxy and /api/mcp-stdio are plain WebSocket upgrades from the
 // page; dispatch on pathname.
@@ -1071,11 +1076,14 @@ function handleWsProxyUpgrade(socket, head, key) {
     });
   }
 
+  const cleanup = () => { activeRelays.delete(cleanup); upstream?.end(); };
+  activeRelays.add(cleanup);
+
   socket.on('data', chunk => {
     for (const frame of browserDecoder.push(chunk)) handleBrowserFrame(frame);
   });
-  socket.on('close', () => upstream?.end());
-  socket.on('error', () => upstream?.end());
+  socket.on('close', cleanup);
+  socket.on('error', cleanup);
 
   if (head && head.length) {
     for (const frame of browserDecoder.push(head)) handleBrowserFrame(frame);
@@ -1192,11 +1200,14 @@ function handleMcpStdioUpgrade(socket, head, key) {
     });
   }
 
+  const cleanup = () => { activeRelays.delete(cleanup); child?.kill(); };
+  activeRelays.add(cleanup);
+
   socket.on('data', chunk => {
     for (const frame of browserDecoder.push(chunk)) handleBrowserFrame(frame);
   });
-  socket.on('close', () => child?.kill());
-  socket.on('error', () => child?.kill());
+  socket.on('close', cleanup);
+  socket.on('error', cleanup);
 
   if (head && head.length) {
     for (const frame of browserDecoder.push(head)) handleBrowserFrame(frame);
@@ -1214,11 +1225,30 @@ function lanAddresses() {
   return addrs;
 }
 
+// ─── Graceful shutdown ──────────────────────────────────────────────────────────
+let shuttingDown = false;
+async function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  log('INFO', `${signal} received, shutting down...`);
+  await stopMockServer();
+  for (const cleanup of activeRelays) cleanup();
+  server.close(() => {
+    log('INFO', 'Server closed');
+    process.exit(0);
+  });
+  // Open WebSocket/MCP relay connections keep the server from closing on
+  // their own — force exit shortly after if it's still up.
+  setTimeout(() => process.exit(0), 1000).unref();
+}
+
 if (require.main === module) {
   server.listen(PORT, () => {
     log('INFO', `Salvo running at http://localhost:${PORT}`);
     for (const addr of lanAddresses()) log('INFO', `  also available at http://${addr}:${PORT}`);
   });
+  process.on('SIGINT',  () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
 module.exports = {

@@ -7,11 +7,8 @@ function activeTab() {
 function openTab(reqId) {
   const existing = state.tabs.find(t => t.reqId === reqId);
   if (existing) {
-    state.activeTabId = existing.id;
-    renderSidebar();
-    showReqEditor();
+    if (existing.id !== state.activeTabId) switchTab(existing.id);
     closeSidebar();
-    scheduleDiskSave();
     return;
   }
 
@@ -61,6 +58,16 @@ function closeTab(tabId, event) {
 
 function switchTab(tabId) {
   if (state.activeTabId === tabId) return;
+
+  // Leaving a tab with an open WS/MCP session or in-flight request cancels
+  // it — the Send button only shows "Disconnect"/"Cancel" for the active tab.
+  const prev = activeTab();
+  if (prev) {
+    disconnectWs(prev);
+    disconnectMcp(prev);
+    if (prev.loading) prev.abortCtrl?.abort();
+  }
+
   state.activeTabId = tabId;
   renderSidebar();
   showReqEditor();

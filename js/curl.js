@@ -4,17 +4,25 @@ function buildCurl() {
   const r = activeTab()?.req;
   if (!r || !r.url) return '';
 
+  // mcp-stdio requests spawn a local process over stdin/stdout — no HTTP
+  // request is made, so there's no curl equivalent.
+  if (r.protocol === 'mcp-stdio') return '';
+
+  const isMcpHttp = r.protocol === 'mcp-http';
   const parts = ['curl'];
 
-  // Method (omit -X for GET since it's the default)
-  if (r.method !== 'GET') {
+  // Method (omit -X for GET since it's the default; mcp-http always POSTs
+  // a JSON-RPC message regardless of the request's method field)
+  if (isMcpHttp) {
+    parts.push('-X POST');
+  } else if (r.method !== 'GET') {
     parts.push(`-X ${r.method}`);
   }
 
   // URL + path variables + query params
   let rawUrl = interp(r.url);
   rawUrl = substitutePathVars(rawUrl, r.pathVars);
-  if (!rawUrl.match(/^https?:\/\//i)) rawUrl = 'https://' + rawUrl;
+  if (!rawUrl.match(/^(https?|wss?):\/\//i)) rawUrl = 'https://' + rawUrl;
   try {
     const urlObj = new URL(rawUrl);
     r.params
@@ -44,6 +52,26 @@ function buildCurl() {
   r.headers
     .filter(h => h.enabled && h.key)
     .forEach(h => parts.push(`-H '${interp(h.key)}: ${interp(h.value)}'`));
+
+  // mcp-http sends an initial `initialize` JSON-RPC request over a
+  // Streamable HTTP POST — show that as the representative request and
+  // skip the normal body handling below (req.body is unused for mcp-http).
+  if (isMcpHttp) {
+    const hasContentType = r.headers.some(h => h.enabled && h.key.toLowerCase() === 'content-type');
+    const hasAccept      = r.headers.some(h => h.enabled && h.key.toLowerCase() === 'accept');
+    if (!hasContentType) parts.push(`-H 'Content-Type: application/json'`);
+    if (!hasAccept)      parts.push(`-H 'Accept: application/json, text/event-stream'`);
+    const payload = JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'initialize',
+      params: {
+        protocolVersion: MCP_PROTOCOL_VERSION,
+        capabilities:    {},
+        clientInfo:      { name: 'Salvo', version: '1.0' },
+      },
+    });
+    parts.push(`-d '${payload.replace(/'/g, `'\\''`)}'`);
+    return parts.join(' \\\n  ');
+  }
 
   // Body
   const body = r.body;
@@ -98,6 +126,9 @@ function buildMockCurl() {
 
 function curlPanelHTML() {
   const r = activeTab()?.req;
+  if (r?.protocol === 'mcp-stdio') {
+    return `<p class="muted">MCP · stdio requests run as a local process over stdin/stdout — there's no curl equivalent.</p>`;
+  }
   const cmd = buildCurl();
   if (!cmd) return `<p class="muted">Enter a URL to see the curl command.</p>`;
 

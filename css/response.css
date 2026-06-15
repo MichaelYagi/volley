@@ -91,6 +91,11 @@
 .jt-null     { color: var(--text-muted); }
 .jt-row      { position: absolute; left: 0; height: 21px; line-height: 21px; white-space: nowrap; }
 
+/* Non-virtualized JSON trees (e.g. each MCP transcript message) lay rows out
+   in normal flow instead of absolutely-positioned/virtualized. */
+.jt-tree-static { white-space: nowrap; overflow-x: auto; }
+.jt-tree-static .jt-row { position: static; height: auto; }
+
 .jt-savevar {
   visibility: hidden;
   width: 0;

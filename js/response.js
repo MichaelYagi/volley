@@ -330,7 +330,7 @@ function renderMcpRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exB
   if (!resp.messages.length) {
     html += `<span class="muted">${resp.status === 'connecting' ? 'Connecting…' : 'No messages yet.'}</span>`;
   } else {
-    html += resp.messages.map(m => {
+    html += resp.messages.map((m, i) => {
       if (m.dir === 'system') {
         return `<div class="ws-msg ws-msg-system">
           <span class="ws-msg-time">${new Date(m.time).toLocaleTimeString()}</span>
@@ -343,13 +343,21 @@ function renderMcpRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exB
           <span class="ws-msg-dir">${dirLabel}</span>
           <span class="ws-msg-time">${new Date(m.time).toLocaleTimeString()}</span>
         </div>
-        <pre class="ws-msg-data">${esc(JSON.stringify(m.data, null, 2))}</pre>
+        <div class="mcp-msg-data" data-msg-index="${i}"></div>
       </div>`;
     }).join('');
   }
   html += '</div></div>';
 
   wrap.innerHTML = html;
+
+  // JSON-RPC message bodies are always JSON — render each as a collapsible
+  // tree like a normal response body, instead of raw preformatted text.
+  resp.messages.forEach((m, i) => {
+    if (m.dir === 'system') return;
+    const container = wrap.querySelector(`.mcp-msg-data[data-msg-index="${i}"]`);
+    if (container) container.appendChild(buildJsonTreeStatic(m.data));
+  });
 
   const transcriptWrap = wrap.querySelector('.mcp-transcript-wrap');
   if (transcriptWrap) {
@@ -599,6 +607,26 @@ function buildJtRow(line, onToggle) {
   }
 
   return row;
+}
+
+// Builds a collapsible JSON tree for `data` with no virtualization — used
+// for small embedded bodies (e.g. each message in the MCP transcript) where
+// the full tree is cheap to render and there's no dedicated scroll container
+// to virtualize against.
+function buildJsonTreeStatic(data) {
+  const container = document.createElement('div');
+  container.className = 'jt-tree-static';
+  const rootState = buildJtState(data, 0);
+
+  function reflow() {
+    container.innerHTML = '';
+    const lines = [];
+    flattenJsonTree(data, rootState, 0, null, false, lines);
+    lines.forEach(line => container.appendChild(buildJtRow(line, reflow)));
+  }
+
+  reflow();
+  return container;
 }
 
 // Removes any scroll/resize listeners left over from a previously rendered

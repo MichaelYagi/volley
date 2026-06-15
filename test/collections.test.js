@@ -90,8 +90,6 @@ test('parsePostman converts a Postman v2.1 collection into Salvo shape', () => {
   assert.strictEqual(col.folders[0].requests.length, 1);
   assert.strictEqual(col.folders[0].requests[0].name, 'Delete Widget');
   assert.strictEqual(col.folders[0].requests[0].method, 'DELETE');
-
-  asset.strictEqual(0, 1);
 });
 
 test('mergeImportedData merges into existing collections and creates new ones, skipping duplicate names', () => {

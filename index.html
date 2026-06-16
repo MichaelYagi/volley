@@ -334,6 +334,24 @@ SOFTWARE.</pre>
   </div>
 </div>
 
+<!-- ── Import Preview Modal ───────────────────────────────────────────── -->
+<div id="import-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeImportModal()">
+  <div class="modal import-modal" onclick="event.stopPropagation()">
+    <h3>Import Preview</h3>
+    <div class="import-modal-top">
+      <label class="import-overwrite-label">
+        <input type="checkbox" id="import-overwrite-all" onchange="importToggleAll(this.checked)">
+        Overwrite all — replace every changed item without reviewing individually
+      </label>
+    </div>
+    <div id="import-list"></div>
+    <div class="modal-footer">
+      <button onclick="closeImportModal()">Cancel</button>
+      <button class="btn-primary" onclick="confirmImport()">Import</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Context Menu (positioned by JS) ──────────────────────────────────── -->
 <div id="ctx-menu" class="ctx-menu" style="display:none"></div>
 

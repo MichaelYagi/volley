@@ -145,6 +145,24 @@ function statusColor(status) {
        :                '#f85149';
 }
 
+/** Stable fingerprint of a request's meaningful fields for change detection.
+ *  Excludes ephemeral fields (id, cachedToken, cachedExpiry, comments, etc.). */
+function reqFingerprint(r) {
+  return JSON.stringify({
+    name: r.name, method: r.method, url: r.url, protocol: r.protocol,
+    params: r.params, pathVars: r.pathVars, headers: r.headers, body: r.body,
+    auth: {
+      type: r.auth.type, token: r.auth.token,
+      username: r.auth.username, password: r.auth.password,
+      apiKey: r.auth.apiKey, apiValue: r.auth.apiValue,
+      accessTokenUrl: r.auth.accessTokenUrl, clientId: r.auth.clientId,
+      clientSecret: r.auth.clientSecret, scope: r.auth.scope,
+      jwtSecret: r.auth.jwtSecret, jwtPayload: r.auth.jwtPayload,
+    },
+    preRequestScript: r.preRequestScript, testScript: r.testScript,
+  });
+}
+
 /** Human-readable byte size, e.g. 1536 -> "1.5 KB" */
 function formatBytes(n) {
   if (n == null) return '';

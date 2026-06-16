@@ -303,21 +303,6 @@ function snapshotAllRequests() {
 
 // Fingerprint of the user-editable fields of a request — excludes ephemeral
 // fields (id, cached OAuth tokens, comments, description, mock, examples).
-function reqFingerprint(r) {
-  return JSON.stringify({
-    name: r.name, method: r.method, url: r.url, protocol: r.protocol,
-    params: r.params, pathVars: r.pathVars, headers: r.headers, body: r.body,
-    auth: {
-      type: r.auth.type, token: r.auth.token,
-      username: r.auth.username, password: r.auth.password,
-      apiKey: r.auth.apiKey, apiValue: r.auth.apiValue,
-      accessTokenUrl: r.auth.accessTokenUrl, clientId: r.auth.clientId,
-      clientSecret: r.auth.clientSecret, scope: r.auth.scope,
-      jwtSecret: r.auth.jwtSecret, jwtPayload: r.auth.jwtPayload,
-    },
-    preRequestScript: r.preRequestScript, testScript: r.testScript,
-  });
-}
 
 function getChangedRequests() {
   const changed = [];
@@ -452,6 +437,34 @@ function buildChangeDiff(req, orig) {
   return rows;
 }
 
+function buildDiffHTML(diff) {
+  return diff.map(({ field, oldVal, newVal, note, kv }) => {
+    if (kv) {
+      const kvHtml = kv.map(c => {
+        if (c.type === 'added')
+          return `<div class="changes-diff-kv-row"><span class="changes-diff-new">+ ${esc(c.key)}: ${esc(c.val)}</span></div>`;
+        if (c.type === 'removed')
+          return `<div class="changes-diff-kv-row"><span class="changes-diff-old">− ${esc(c.key)}: ${esc(c.val)}</span></div>`;
+        if (c.type === 'changed')
+          return `<div class="changes-diff-kv-row"><span class="changes-diff-kv-key">${esc(c.key)}:</span> <span class="changes-diff-old">${esc(c.oldVal)}</span> <span class="changes-diff-arrow">→</span> <span class="changes-diff-new">${esc(c.newVal)}</span></div>`;
+        if (c.type === 'toggled')
+          return `<div class="changes-diff-kv-row"><span class="changes-diff-kv-key">${esc(c.key)}:</span> <span class="changes-diff-note">${c.enabled ? 'enabled' : 'disabled'}</span></div>`;
+        return '';
+      }).join('');
+      return `<div class="changes-diff-row changes-diff-row-kv">
+        <span class="changes-diff-field">${esc(field)}</span>
+        <div class="changes-diff-kv">${kvHtml}</div>
+      </div>`;
+    }
+    return `<div class="changes-diff-row">
+      <span class="changes-diff-field">${esc(field)}</span>
+      ${note
+        ? `<span class="changes-diff-note">${esc(note)}</span>`
+        : `<span class="changes-diff-old">${esc(oldVal)}</span> <span class="changes-diff-arrow">→</span> <span class="changes-diff-new">${esc(newVal)}</span>`}
+    </div>`;
+  }).join('');
+}
+
 function renderChangesPanel() {
   const list = document.getElementById('changes-list');
   const changed = getChangedRequests();
@@ -473,32 +486,7 @@ function renderChangesPanel() {
       ${entries.map(({ req, original, folder }) => {
         const color = MC[req.method] || 'var(--text)';
         const path  = folder ? esc(folder.name) : '';
-        const diff  = buildChangeDiff(req, original);
-        const diffHtml = diff.map(({ field, oldVal, newVal, note, kv }) => {
-          if (kv) {
-            const kvHtml = kv.map(c => {
-              if (c.type === 'added')
-                return `<div class="changes-diff-kv-row"><span class="changes-diff-new">+ ${esc(c.key)}: ${esc(c.val)}</span></div>`;
-              if (c.type === 'removed')
-                return `<div class="changes-diff-kv-row"><span class="changes-diff-old">− ${esc(c.key)}: ${esc(c.val)}</span></div>`;
-              if (c.type === 'changed')
-                return `<div class="changes-diff-kv-row"><span class="changes-diff-kv-key">${esc(c.key)}:</span> <span class="changes-diff-old">${esc(c.oldVal)}</span> <span class="changes-diff-arrow">→</span> <span class="changes-diff-new">${esc(c.newVal)}</span></div>`;
-              if (c.type === 'toggled')
-                return `<div class="changes-diff-kv-row"><span class="changes-diff-kv-key">${esc(c.key)}:</span> <span class="changes-diff-note">${c.enabled ? 'enabled' : 'disabled'}</span></div>`;
-              return '';
-            }).join('');
-            return `<div class="changes-diff-row changes-diff-row-kv">
-              <span class="changes-diff-field">${esc(field)}</span>
-              <div class="changes-diff-kv">${kvHtml}</div>
-            </div>`;
-          }
-          return `<div class="changes-diff-row">
-            <span class="changes-diff-field">${esc(field)}</span>
-            ${note
-              ? `<span class="changes-diff-note">${esc(note)}</span>`
-              : `<span class="changes-diff-old">${esc(oldVal)}</span> <span class="changes-diff-arrow">→</span> <span class="changes-diff-new">${esc(newVal)}</span>`}
-          </div>`;
-        }).join('');
+        const diffHtml = buildDiffHTML(buildChangeDiff(req, original));
         return `
           <div class="changes-req-row">
             <div class="changes-req-top">

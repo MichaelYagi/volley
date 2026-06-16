@@ -358,91 +358,194 @@ function exportAll() {
 }
 
 // Merge a list of [key, value] vars into an environment matched by name,
-// creating it if it doesn't exist. Existing keys are left untouched.
+// creating it if it doesn't exist. New keys are added; changed values are
+// replaced; identical keys are left untouched.
 function mergeEnvVars(envName, pairs) {
   let env = state.envs.find(e => e.name === envName);
   if (!env) {
     env = { id: uid(), name: envName, vars: [] };
     state.envs.push(env);
   }
-  let added = 0;
+  let changed = 0;
   pairs.forEach(([k, v]) => {
-    if (!k || env.vars.some(row => row.key === k)) return;
-    env.vars.push({ id: uid(), key: k, value: v ?? '', enabled: true });
-    added++;
+    if (!k) return;
+    const existing = env.vars.find(row => row.key === k);
+    if (!existing) {
+      env.vars.push({ id: uid(), key: k, value: v ?? '', enabled: true });
+      changed++;
+    } else if (existing.value !== (v ?? '')) {
+      existing.value = v ?? '';
+      changed++;
+    }
   });
-  return { envName: env.name, added };
+  return { envName: env.name, changed };
 }
 
-// Merge a { cols, envs } payload into the current state. Existing collections/
-// folders are matched by name; requests with a name that already exists in the
-// matching collection/folder are skipped. Environments are matched by name and
-// merged var-by-var, leaving existing vars untouched.
-function mergeImportedData(data) {
-  const importedCols = (data.cols || []).map(c => ({
-    name:     c.name,
+// ─── Import preview modal ─────────────────────────────────────────────────────
+
+let _importPending = null;
+
+function _buildImportItems(importedCols) {
+  const items = [];
+  importedCols.forEach(ic => {
+    const col = state.cols.find(c => c.name === ic.name);
+    const checkReqs = (reqs, folderName) => {
+      const existingList = folderName
+        ? ((col && col.folders.find(f => f.name === folderName)) || { requests: [] }).requests
+        : (col || { requests: [] }).requests;
+      reqs.forEach(r => {
+        const match = existingList.find(x => x.name === r.name);
+        if (!match) {
+          items.push({ id: uid(), colName: ic.name, folderName, name: r.name, type: 'new', req: r });
+        } else if (reqFingerprint(r) !== reqFingerprint(match)) {
+          items.push({ id: uid(), colName: ic.name, folderName, name: r.name, type: 'changed', req: r, existing: match });
+        }
+        // identical → silent skip
+      });
+    };
+    checkReqs(ic.requests, null);
+    ic.folders.forEach(ifo => checkReqs(ifo.requests, ifo.name));
+  });
+  return items;
+}
+
+function openImportModal(rawData) {
+  const importedCols = (rawData.cols || []).map(c => ({
+    name:        c.name,
     description: c.description || '',
-    requests: (c.requests || []).map(normalizeReq),
-    folders:  (c.folders  || []).map(f => ({
+    requests:    (c.requests || []).map(normalizeReq),
+    folders:     (c.folders  || []).map(f => ({
       name:     f.name,
       requests: (f.requests || []).map(normalizeReq),
     })),
   }));
 
-  let added = 0, skipped = 0;
+  _importPending = { rawData, importedCols, items: _buildImportItems(importedCols) };
 
-  importedCols.forEach(ic => {
-    let col = state.cols.find(c => c.name === ic.name);
+  const list = document.getElementById('import-list');
+  const items = _importPending.items;
+
+  if (!items.length) {
+    list.innerHTML = `<div class="import-empty">Nothing to import — all requests are already up to date.</div>`;
+  } else {
+    const groups = {};
+    items.forEach(item => { (groups[item.colName] = groups[item.colName] || []).push(item); });
+    let html = '';
+    for (const [colName, colItems] of Object.entries(groups)) {
+      html += `<div class="import-col-group"><div class="import-col-name">${esc(colName)}</div>`;
+      colItems.forEach(item => {
+        const path = item.folderName ? `<span class="import-item-path">${esc(item.folderName)} / </span>` : '';
+        const tagClass = item.type === 'new' ? 'import-tag-new' : 'import-tag-changed';
+        const tagLabel = item.type === 'new' ? 'New' : 'Changed';
+        const color = MC[item.req.method] || 'var(--text)';
+        if (item.type === 'changed') {
+          const diffHtml = buildDiffHTML(buildChangeDiff(item.req, item.existing));
+          html += `<div class="import-item-wrap">
+            <div class="import-item">
+              <input type="checkbox" data-import-id="${esc(item.id)}" checked>
+              <span class="req-method" style="color:${color};font-size:10px;font-weight:700;min-width:44px;flex-shrink:0">${esc(item.req.method)}</span>
+              <span class="import-item-name">${path}${esc(item.name)}</span>
+              <span class="import-item-tag ${tagClass}">${tagLabel}</span>
+              <button class="import-diff-toggle" id="import-diff-btn-${esc(item.id)}" onclick="toggleImportDiff('${esc(item.id)}')">▶</button>
+            </div>
+            <div class="changes-diff import-diff" id="import-diff-${esc(item.id)}" style="display:none">${diffHtml}</div>
+          </div>`;
+        } else {
+          html += `<div class="import-item">
+            <input type="checkbox" data-import-id="${esc(item.id)}" checked>
+            <span class="req-method" style="color:${color};font-size:10px;font-weight:700;min-width:44px;flex-shrink:0">${esc(item.req.method)}</span>
+            <span class="import-item-name">${path}${esc(item.name)}</span>
+            <span class="import-item-tag ${tagClass}">${tagLabel}</span>
+          </div>`;
+        }
+      });
+      html += `</div>`;
+    }
+    list.innerHTML = html;
+  }
+
+  document.getElementById('import-overwrite-all').checked = false;
+  document.getElementById('import-modal').style.display = 'flex';
+}
+
+function closeImportModal() {
+  document.getElementById('import-modal').style.display = 'none';
+  _importPending = null;
+}
+
+function importToggleAll(checked) {
+  document.querySelectorAll('#import-list input[type=checkbox]').forEach(cb => { cb.checked = checked; });
+}
+
+function toggleImportDiff(itemId) {
+  const diff = document.getElementById(`import-diff-${itemId}`);
+  const btn  = document.getElementById(`import-diff-btn-${itemId}`);
+  if (!diff) return;
+  const open = diff.style.display === 'none';
+  diff.style.display = open ? 'block' : 'none';
+  if (btn) btn.textContent = open ? '▼' : '▶';
+}
+
+function _applyImportItems(items, rawData) {
+  let added = 0, updated = 0;
+
+  items.forEach(item => {
+    let col = state.cols.find(c => c.name === item.colName);
     if (!col) {
-      col = { id: uid(), name: ic.name, description: ic.description || '', requests: [], folders: [] };
+      col = { id: uid(), name: item.colName, description: '', requests: [], folders: [] };
       state.cols.push(col);
     }
     state.expandedCols.add(col.id);
 
-    ic.requests.forEach(r => {
-      if (col.requests.some(x => x.name === r.name)) { skipped++; return; }
-      col.requests.push(r);
-      added++;
-    });
-
-    ic.folders.forEach(ifo => {
-      let folder = col.folders.find(f => f.name === ifo.name);
-      if (!folder) {
-        folder = { id: uid(), name: ifo.name, requests: [] };
-        col.folders.push(folder);
-      }
-      ifo.requests.forEach(r => {
-        if (folder.requests.some(x => x.name === r.name)) { skipped++; return; }
-        folder.requests.push(r);
-        added++;
-      });
-    });
+    if (item.folderName) {
+      let folder = col.folders.find(f => f.name === item.folderName);
+      if (!folder) { folder = { id: uid(), name: item.folderName, requests: [] }; col.folders.push(folder); }
+      const idx = folder.requests.findIndex(x => x.name === item.name);
+      if (idx >= 0) { folder.requests[idx] = item.req; updated++; }
+      else          { folder.requests.push(item.req); added++; }
+    } else {
+      const idx = col.requests.findIndex(x => x.name === item.name);
+      if (idx >= 0) { col.requests[idx] = item.req; updated++; }
+      else          { col.requests.push(item.req); added++; }
+    }
   });
 
-  let envsAdded = 0, varsAdded = 0;
-  (data.envs || []).forEach(ie => {
+  let envsChanged = 0;
+  ((rawData && rawData.envs) || []).forEach(ie => {
     if (!ie || !ie.name) return;
-    const existed = state.envs.some(e => e.name === ie.name);
     const pairs = Array.isArray(ie.vars) ? ie.vars.map(v => [v.key, v.value]) : Object.entries(ie.vars || {});
-    const { added: va } = mergeEnvVars(ie.name, pairs);
-    if (!existed) envsAdded++;
-    varsAdded += va;
+    const { changed } = mergeEnvVars(ie.name, pairs);
+    envsChanged += changed;
   });
 
   renderSidebar();
   renderEnvSelect();
   scheduleDiskSave();
-
-  const skippedMsg = skipped ? `, skipped ${skipped} duplicate${skipped === 1 ? '' : 's'}` : '';
-  const envMsg = (envsAdded || varsAdded)
-    ? `, ${envsAdded} new env${envsAdded === 1 ? '' : 's'} (${varsAdded} var${varsAdded === 1 ? '' : 's'})`
-    : '';
-  notify(`Imported ${added} request${added === 1 ? '' : 's'}${skippedMsg}${envMsg}`, 'success');
+  return { added, updated, envsChanged };
 }
 
-// Dispatches based on JSON shape: a Salvo export ({ cols }) is merged into the
-// current collections; a Postman v2.x collection ({ info, item }) is added as
-// a new collection.
+function confirmImport() {
+  if (!_importPending) return;
+
+  const checkedIds = new Set(
+    [...document.querySelectorAll('#import-list input[type=checkbox]:checked')]
+      .map(cb => cb.dataset.importId)
+  );
+  const items = _importPending.items.filter(item => checkedIds.has(item.id));
+  const { added, updated, envsChanged } = _applyImportItems(items, _importPending.rawData);
+
+  closeImportModal();
+
+  const parts = [];
+  if (added)        parts.push(`${added} added`);
+  if (updated)      parts.push(`${updated} updated`);
+  if (envsChanged)  parts.push(`${envsChanged} env var${envsChanged === 1 ? '' : 's'} synced`);
+  notify(parts.length ? `Imported: ${parts.join(', ')}` : 'Nothing changed', 'success');
+}
+
+// Dispatches based on JSON shape: a Salvo export ({ cols }) opens the import
+// preview modal; a Postman v2.x collection ({ info, item }) is added as a new
+// collection; a Postman environment export is merged var-by-var.
 async function importAny(event) {
   const file = event.target.files[0];
   if (!file) return;
@@ -451,7 +554,7 @@ async function importAny(event) {
     const data = JSON.parse(await file.text());
 
     if (Array.isArray(data.cols)) {
-      mergeImportedData(data);
+      openImportModal(data);
     } else if (data.item) {
       const col = parsePostman(data);
       state.cols.push(col);
@@ -459,8 +562,8 @@ async function importAny(event) {
 
       let envMsg = '';
       if (Array.isArray(data.variable) && data.variable.length) {
-        const { added } = mergeEnvVars(col.name, data.variable.map(v => [v.key, v.value]));
-        if (added) envMsg = `, ${added} env var${added === 1 ? '' : 's'}`;
+        const { changed } = mergeEnvVars(col.name, data.variable.map(v => [v.key, v.value]));
+        if (changed) envMsg = `, ${changed} env var${changed === 1 ? '' : 's'}`;
       }
 
       renderSidebar();
@@ -469,10 +572,10 @@ async function importAny(event) {
       notify('Imported: ' + col.name + envMsg, 'success');
     } else if (data._postman_variable_scope === 'environment' && Array.isArray(data.values)) {
       const pairs = data.values.filter(v => v.enabled !== false).map(v => [v.key, v.value]);
-      const { envName, added } = mergeEnvVars(data.name || 'Imported Environment', pairs);
+      const { envName, changed } = mergeEnvVars(data.name || 'Imported Environment', pairs);
       renderEnvSelect();
       scheduleDiskSave();
-      notify(`Imported environment "${envName}" (${added} var${added === 1 ? '' : 's'})`, 'success');
+      notify(`Imported environment "${envName}" (${changed} var${changed === 1 ? '' : 's'})`, 'success');
     } else {
       throw new Error('Not a Salvo export, Postman collection, or Postman environment');
     }

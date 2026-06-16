@@ -413,9 +413,23 @@ The **Export** button (topbar) downloads a `salvo-export.json` containing all co
 A single collection can also be exported on its own via its right-click menu, as either a Salvo JSON file (**Export JSON**) or a Postman v2.1.0 collection (**Export as Postman**) — handy for sharing one collection with someone still on Postman.
 
 The **Import** button accepts any of:
-- A Salvo export (`{ "cols": [...], "envs": [...] }`) — collections/folders are merged into your existing ones by name (skipping any request whose name already exists), and environments are merged by name, var-by-var (existing vars are left untouched)
+- A Salvo export (`{ "cols": [...], "envs": [...] }`) — opens an **import preview modal** before anything is applied (see below)
 - A Postman v2.x collection — added as a new collection; any collection-level Postman variables are imported as an environment named after the collection
-- A Postman environment export — merged into a matching (or newly created) environment by name
+- A Postman environment export — merged into a matching (or newly created) environment by name; new vars are added and changed vars are updated
+
+### Salvo import preview
+
+When importing a Salvo export, a preview modal lists every request that would change, grouped by collection, before anything is written:
+
+- **New** — the request doesn't exist locally; will be added
+- **Changed** — the request exists but differs from the imported version; will replace the local copy
+- **Identical** — not shown; silently skipped
+
+Every item is checked by default. Uncheck any you want to leave as-is, then click **Import** to apply. **Cancel** closes the modal with no changes made.
+
+The **Overwrite all** checkbox at the top checks every item at once — useful when you want to fully sync from the exported file without reviewing individual requests.
+
+Environment variables in the export are always synced automatically (new vars added, changed vars updated, identical vars skipped) regardless of which requests you check.
 
 ## Tests
 

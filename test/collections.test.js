@@ -33,13 +33,14 @@ function loadSandbox() {
   vm.runInContext(stateSrc, sandbox, { filename: 'state.js' });
   vm.runInContext(collectionsSrc, sandbox, { filename: 'collections.js' });
 
-  // mergeImportedData calls these — stub them out as no-ops for the test.
+  // Import/apply helpers call these — stub them out as no-ops for the test.
   // Also re-expose top-level `const state` as a property of the sandbox object,
   // since `const`/`let` bindings aren't reflected on the context's global object.
   vm.runInContext(`
     function renderSidebar() {}
     function renderEnvSelect() {}
     function scheduleDiskSave() {}
+    function notify() {}
     globalThis.state = state;
   `, sandbox, { filename: 'stubs.js' });
 
@@ -92,71 +93,69 @@ test('parsePostman converts a Postman v2.1 collection into Salvo shape', () => {
   assert.strictEqual(col.folders[0].requests[0].method, 'DELETE');
 });
 
-test('mergeImportedData merges into existing collections and creates new ones, skipping duplicate names', () => {
+test('_buildImportItems classifies new, changed, and identical requests correctly', () => {
   const sandbox = loadSandbox();
 
   sandbox.state.cols = [
     {
       id: 'col-1', name: 'Demo', folders: [],
       requests: [
-        { id: 'r1', name: 'Existing Request', method: 'GET', url: '/old', params: [], headers: [], body: { type: 'none', raw: '', formData: [] }, auth: { type: 'none' } },
+        sandbox.normalizeReq({ name: 'Identical Request', method: 'GET', url: '/same' }),
+        sandbox.normalizeReq({ name: 'Changed Request',   method: 'GET', url: '/old'  }),
       ],
     },
   ];
 
-  const importPayload = {
-    cols: [
-      {
-        name: 'Demo',
-        requests: [
-          { name: 'Existing Request', method: 'GET', url: '/dupe' },  // should be skipped
-          { name: 'New Request',      method: 'POST', url: '/new' },  // should be added
-        ],
-        folders: [],
-      },
-      {
-        name: 'Brand New Collection',
-        requests: [],
-        folders: [
-          { name: 'Sub', requests: [{ name: 'Nested Request', method: 'GET', url: '/nested' }] },
-        ],
-      },
-    ],
-  };
-
-  sandbox.mergeImportedData(importPayload);
-
-  const demo = sandbox.state.cols.find(c => c.name === 'Demo');
-  assert.strictEqual(demo.requests.length, 2);
-  assert.strictEqual(demo.requests.find(r => r.name === 'Existing Request').url, '/old', 'duplicate-named request should not overwrite the existing one');
-  assert.ok(demo.requests.find(r => r.name === 'New Request'), 'non-duplicate request should be added');
-
-  const brandNew = sandbox.state.cols.find(c => c.name === 'Brand New Collection');
-  assert.ok(brandNew, 'a new collection should be created for unseen names');
-  assert.strictEqual(brandNew.folders.length, 1);
-  assert.strictEqual(brandNew.folders[0].name, 'Sub');
-  assert.strictEqual(brandNew.folders[0].requests[0].name, 'Nested Request');
-});
-
-test('mergeImportedData carries over collection descriptions for new collections only', () => {
-  const sandbox = loadSandbox();
-
-  sandbox.state.cols = [
-    { id: 'col-1', name: 'Demo', description: 'Existing description', folders: [], requests: [] },
+  const importedCols = [
+    {
+      name: 'Demo',
+      description: '',
+      requests: [
+        sandbox.normalizeReq({ name: 'Identical Request', method: 'GET', url: '/same' }),
+        sandbox.normalizeReq({ name: 'Changed Request',   method: 'GET', url: '/new'  }),
+        sandbox.normalizeReq({ name: 'Brand New Request', method: 'POST', url: '/new' }),
+      ],
+      folders: [],
+    },
   ];
 
-  sandbox.mergeImportedData({
-    cols: [
-      { name: 'Demo', description: 'Imported description', requests: [], folders: [] },
-      { name: 'New Collection', description: 'Brand new', requests: [], folders: [] },
-    ],
-  });
+  const items = sandbox._buildImportItems(importedCols);
+
+  assert.strictEqual(items.length, 2, 'identical request should be silently skipped');
+  assert.ok(items.find(i => i.name === 'Changed Request' && i.type === 'changed'), 'changed request should be classified as changed');
+  assert.ok(items.find(i => i.name === 'Brand New Request' && i.type === 'new'), 'new request should be classified as new');
+});
+
+test('_applyImportItems adds new requests and replaces changed ones', () => {
+  const sandbox = loadSandbox();
+
+  const existingReq = sandbox.normalizeReq({ name: 'Changed Request', method: 'GET', url: '/old' });
+  sandbox.state.cols = [
+    { id: 'col-1', name: 'Demo', folders: [], requests: [existingReq] },
+  ];
+
+  const changedReq  = sandbox.normalizeReq({ name: 'Changed Request', method: 'GET', url: '/new' });
+  const newReq      = sandbox.normalizeReq({ name: 'New Request', method: 'POST', url: '/new' });
+
+  const items = [
+    { id: 'i1', colName: 'Demo', folderName: null, name: 'Changed Request', type: 'changed', req: changedReq },
+    { id: 'i2', colName: 'Demo', folderName: null, name: 'New Request',     type: 'new',     req: newReq     },
+    { id: 'i3', colName: 'Brand New Collection', folderName: 'Sub', name: 'Nested', type: 'new',
+      req: sandbox.normalizeReq({ name: 'Nested', method: 'GET', url: '/nested' }) },
+  ];
+
+  const { added, updated } = sandbox._applyImportItems(items, {});
+
+  assert.strictEqual(added,   2);
+  assert.strictEqual(updated, 1);
 
   const demo = sandbox.state.cols.find(c => c.name === 'Demo');
-  assert.strictEqual(demo.description, 'Existing description', 'an existing collection\'s description should not be overwritten by import');
+  assert.strictEqual(demo.requests.find(r => r.name === 'Changed Request').url, '/new', 'changed request should be replaced');
+  assert.ok(demo.requests.find(r => r.name === 'New Request'), 'new request should be added');
 
-  const fresh = sandbox.state.cols.find(c => c.name === 'New Collection');
-  assert.strictEqual(fresh.description, 'Brand new');
+  const brandNew = sandbox.state.cols.find(c => c.name === 'Brand New Collection');
+  assert.ok(brandNew, 'new collection should be created');
+  assert.strictEqual(brandNew.folders[0].requests[0].name, 'Nested');
 });
 
 test('normalizeReq defaults description, comments, mock, and examples for older saved requests', () => {

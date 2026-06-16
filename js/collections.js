@@ -501,11 +501,11 @@ function _applyImportItems(items, rawData) {
       let folder = col.folders.find(f => f.name === item.folderName);
       if (!folder) { folder = { id: uid(), name: item.folderName, requests: [] }; col.folders.push(folder); }
       const idx = folder.requests.findIndex(x => x.name === item.name);
-      if (idx >= 0) { folder.requests[idx] = item.req; updated++; }
+      if (idx >= 0) { folder.requests[idx] = { ...item.req, id: folder.requests[idx].id }; updated++; }
       else          { folder.requests.push(item.req); added++; }
     } else {
       const idx = col.requests.findIndex(x => x.name === item.name);
-      if (idx >= 0) { col.requests[idx] = item.req; updated++; }
+      if (idx >= 0) { col.requests[idx] = { ...item.req, id: col.requests[idx].id }; updated++; }
       else          { col.requests.push(item.req); added++; }
     }
   });
@@ -534,7 +534,17 @@ function confirmImport() {
   const items = _importPending.items.filter(item => checkedIds.has(item.id));
   const { added, updated, envsChanged } = _applyImportItems(items, _importPending.rawData);
 
+  // Refresh any open tabs whose requests were replaced, keeping the same tab focused
+  state.tabs.forEach(tab => {
+    if (!tab.reqId) return;
+    const current = findReq(tab.reqId);
+    if (current) tab.req = clone(current);
+  });
+
   closeImportModal();
+
+  renderTabStrip();
+  if (activeTab()) { syncReqEditor(); renderReqPanel(); }
 
   const parts = [];
   if (added)        parts.push(`${added} added`);

@@ -157,9 +157,14 @@ function reqFingerprint(r) {
       apiKey: r.auth.apiKey, apiValue: r.auth.apiValue,
       accessTokenUrl: r.auth.accessTokenUrl, clientId: r.auth.clientId,
       clientSecret: r.auth.clientSecret, scope: r.auth.scope,
+      authorizationUrl: r.auth.authorizationUrl, redirectUri: r.auth.redirectUri, pkce: r.auth.pkce,
       jwtSecret: r.auth.jwtSecret, jwtPayload: r.auth.jwtPayload,
     },
     preRequestScript: r.preRequestScript, testScript: r.testScript,
+    mock: r.mock,
+    description: r.description,
+    examples: r.examples,
+    disabledAutoHeaders: r.disabledAutoHeaders,
   });
 }
 

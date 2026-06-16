@@ -404,8 +404,9 @@ function buildChangeDiff(req, orig) {
   if (req.method !== orig.method) simple('method', orig.method, req.method);
   if (req.url    !== orig.url)    simple('url',    orig.url || '(empty)', req.url || '(empty)');
 
-  kv('params',  orig.params,  req.params);
-  kv('headers', orig.headers, req.headers);
+  kv('params',   orig.params,   req.params);
+  kv('path vars', orig.pathVars, req.pathVars);
+  kv('headers',  orig.headers,  req.headers);
 
   if ((orig.body?.type || 'none') !== (req.body?.type || 'none'))
     simple('body', orig.body?.type || 'none', req.body?.type || 'none');
@@ -424,6 +425,9 @@ function buildChangeDiff(req, orig) {
       note('auth', 'credentials modified');
   }
 
+  if (JSON.stringify(orig.disabledAutoHeaders || []) !== JSON.stringify(req.disabledAutoHeaders || []))
+    note('auto-headers', 'disabled set changed');
+
   const ps = s => !!(s?.trim());
   if (ps(orig.preRequestScript) !== ps(req.preRequestScript))
     simple('pre-request script', ps(orig.preRequestScript) ? 'yes' : 'no', ps(req.preRequestScript) ? 'yes' : 'no');
@@ -433,6 +437,17 @@ function buildChangeDiff(req, orig) {
     simple('test script', ps(orig.testScript) ? 'yes' : 'no', ps(req.testScript) ? 'yes' : 'no');
   else if (orig.testScript !== req.testScript)
     note('test script', 'edited');
+
+  if ((orig.mock?.enabled || false) !== (req.mock?.enabled || false))
+    simple('mock', orig.mock?.enabled ? 'enabled' : 'disabled', req.mock?.enabled ? 'enabled' : 'disabled');
+  else if (JSON.stringify(orig.mock) !== JSON.stringify(req.mock))
+    note('mock', 'settings modified');
+
+  if ((orig.description || '') !== (req.description || ''))
+    note('description', 'edited');
+
+  if (JSON.stringify(orig.examples || []) !== JSON.stringify(req.examples || []))
+    note('examples', `${(orig.examples || []).length} → ${(req.examples || []).length}`);
 
   return rows;
 }

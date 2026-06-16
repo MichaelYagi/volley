@@ -310,7 +310,8 @@ Each request has a **Scripts** tab with two editors: a **pre-request script**, r
 - `pm.environment.get(key)` — read a variable from the active environment
 - `pm.environment.set(key, value)` — create or update a variable in the active environment
 - `pm.environment.unset(key)` — remove a variable
-- `pm.globals.get(key)` / `pm.globals.set(key, value)` / `pm.globals.unset(key)` — same, but for [global variables](#global-variables)
+- `pm.globals.get(key)` / `pm.globals.set(key, value)` / `pm.globals.unset(key)` — same, but for [global variables](#global-variables) (always accessible regardless of active environment)
+- `pm.iterationData.get(key)` — read a column from the attached data file; always returns `undefined` outside a [data-driven run](#data-driven-runs-csvjson) (read-only)
 - `pm.response.status` / `pm.response.statusText` — response status (test scripts only)
 - `pm.response.headers` — response headers object (test scripts only)
 - `pm.response.responseTime` — elapsed time in ms (test scripts only)

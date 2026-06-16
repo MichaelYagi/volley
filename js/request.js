@@ -1199,23 +1199,41 @@ function scriptsHTML(req) {
     <div class="scripts-editor">
       <div class="scripts-col">
         <h4>Pre-request Script</h4>
-        <p class="muted">Runs before the request is sent. Use <code>pm.environment.set(key, value)</code> /
-           <code>pm.environment.get(key)</code> to read or write environment variables.</p>
+        <p class="muted">Runs before the request is sent.</p>
         <textarea class="script-area" spellcheck="false"
                   oninput="scriptSet('preRequestScript', this.value)"
-                  placeholder="pm.environment.set('timestamp', Date.now());">${esc(req.preRequestScript || '')}</textarea>
+                  placeholder="// environment variables (active env)
+pm.environment.set('timestamp', Date.now());
+// pm.environment.get('myVar');
+// pm.environment.unset('myVar');
+
+// global variables (always accessible, any env)
+// pm.globals.set('apiKey', 'abc123');
+// pm.globals.get('apiKey');
+// pm.globals.unset('apiKey');
+
+// iteration data — Collection Runner data files only
+// pm.iterationData.get('columnName');">${esc(req.preRequestScript || '')}</textarea>
       </div>
       <div class="scripts-col">
         <h4>Test Script</h4>
-        <p class="muted">Runs after the response is received. Use <code>pm.test(name, fn)</code> and
-           <code>pm.expect(value)</code> for assertions, <code>pm.response.json()</code> /
-           <code>pm.response.text()</code> / <code>pm.response.status</code> to inspect the response, and
-           <code>pm.environment.set(key, value)</code> to extract values for later requests.</p>
+        <p class="muted">Runs after the response is received.</p>
         <textarea class="script-area" spellcheck="false"
                   oninput="scriptSet('testScript', this.value)"
-                  placeholder="pm.test('status is 200', () => pm.expect(pm.response.status).toBe(200));
-const data = pm.response.json();
-pm.environment.set('token', data.token);">${esc(req.testScript || '')}</textarea>
+                  placeholder="// pm.response: .status .statusText .headers .responseTime .json() .text()
+pm.test('status is 200', () => {
+  pm.expect(pm.response.status).toBe(200);
+});
+
+pm.test('body has id', () => {
+  const data = pm.response.json();
+  pm.expect(data).toHaveProperty('id');
+  pm.environment.set('id', data.id);
+});
+
+// matchers: .toBe .toEqual .toBeTruthy .toBeFalsy .toBeDefined
+//           .toBeNull .toContain .toHaveProperty
+//           .toBeGreaterThan .toBeLessThan .not">${esc(req.testScript || '')}</textarea>
       </div>
     </div>`;
 }

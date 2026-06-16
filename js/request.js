@@ -1,19 +1,25 @@
 // ─── Show / sync the request editor pane ─────────────────────────────────────
 
 function showReqEditor() {
-  document.getElementById('empty-state').style.display = 'none';
-  document.getElementById('hist-panel').style.display  = 'none';
-  document.getElementById('req-editor').style.display  = 'flex';
-  state.showHist = false;
-  document.getElementById('hist-toggle').textContent   = '⏱ History';
+  document.getElementById('empty-state').style.display    = 'none';
+  document.getElementById('hist-panel').style.display     = 'none';
+  document.getElementById('changes-panel').style.display  = 'none';
+  document.getElementById('req-editor').style.display     = 'flex';
+  state.showHist    = false;
+  state.showChanges = false;
+  document.getElementById('hist-toggle').textContent = '⏱ History';
+  if (typeof updateChangesToggleLabel === 'function') updateChangesToggleLabel();
   renderTabStrip();
   syncReqEditor();
 }
 
 function showEmptyState() {
-  document.getElementById('req-editor').style.display  = 'none';
-  document.getElementById('hist-panel').style.display  = 'none';
-  document.getElementById('empty-state').style.display = 'flex';
+  document.getElementById('req-editor').style.display     = 'none';
+  document.getElementById('hist-panel').style.display     = 'none';
+  document.getElementById('changes-panel').style.display  = 'none';
+  document.getElementById('empty-state').style.display    = 'flex';
+  state.showChanges = false;
+  if (typeof updateChangesToggleLabel === 'function') updateChangesToggleLabel();
   renderTabStrip();
 }
 

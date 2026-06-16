@@ -72,6 +72,7 @@
       <div id="col-list"></div>
       <div id="sb-bottom">
         <button id="hist-toggle" onclick="toggleHistPanel()">⏱ History</button>
+        <button id="changes-toggle" onclick="toggleChangesPanel()">✎ Changes <span id="changes-badge" class="changes-badge" style="display:none"></span></button>
       </div>
     </div>
 
@@ -165,6 +166,15 @@
         </div>
 
       </div><!-- #req-editor -->
+
+      <!-- Changes panel (shown via toggle) -->
+      <div id="changes-panel" style="display:none">
+        <div class="changes-header">
+          <span class="changes-label">CHANGES</span>
+          <button onclick="resetAllChanges()" style="color:var(--danger);font-size:11px">Reset All</button>
+        </div>
+        <div id="changes-list"></div>
+      </div>
 
       <!-- History panel (shown via toggle) -->
       <div id="hist-panel" style="display:none">

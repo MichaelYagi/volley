@@ -23,6 +23,8 @@ const state = {
   expandedCols:    new Set(),
   expandedFolders: new Set(),
   showHist:        false,
+  showChanges:     false,
+  snapshots:       new Map(), // req.id → cloned req at last save, for change tracking
   envSelId:        'default',
   selectedReqIds:  new Set(),
   lastSelReqId:    null,
@@ -40,6 +42,7 @@ function scheduleAutoSave() {
   _autoSaveTimer = setTimeout(() => {
     syncTabIntoCols(tab);
     scheduleDiskSave();
+    if (typeof updateChangesBadge === 'function') updateChangesBadge();
   }, 500);
 }
 

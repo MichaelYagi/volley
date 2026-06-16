@@ -68,8 +68,9 @@
 
 #col-list  { flex: 1; overflow-y: auto; padding: 3px 0; }
 
-#sb-bottom { border-top: 1px solid var(--bg-input); padding: 6px 8px; }
-#sb-bottom button { width: 100%; font-size: 11px; padding: 5px 0; }
+#sb-bottom { border-top: 1px solid var(--bg-input); padding: 6px 8px; display: flex; gap: 4px; }
+#sb-bottom button { flex: 1; font-size: 11px; padding: 5px 0; }
+.changes-badge { display: inline-flex; align-items: center; justify-content: center; background: var(--accent); color: #fff; border-radius: 10px; font-size: 9px; font-weight: 700; min-width: 14px; height: 14px; padding: 0 3px; margin-left: 3px; vertical-align: middle; line-height: 1; }
 
 /* ─── Collection Headers ────────────────────────────────────────────────────── */
 .col-header {

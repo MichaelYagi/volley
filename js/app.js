@@ -67,7 +67,11 @@ async function saveAll(silent = false) {
     const data = await res.json();
     if (data.ok) {
       setSaveStatus('saved');
-      if (!silent) notify('Saved', 'success');
+      if (!silent) {
+        snapshotAllRequests();
+        notify('Saved', 'success');
+      }
+      updateChangesBadge();
     } else {
       setSaveStatus('error');
       notify('Save failed: ' + data.error, 'error');
@@ -99,6 +103,7 @@ function setSaveStatus(status) {
 async function init() {
   try {
     await loadData();
+    snapshotAllRequests();
   } catch (e) {
     notify('Could not load data/: ' + e.message, 'error');
   }
@@ -195,6 +200,11 @@ function toggleHistPanel() {
   document.getElementById('hist-toggle').textContent = state.showHist ? '◀ Back to Request' : '⏱ History';
 
   if (state.showHist) {
+    if (state.showChanges) {
+      state.showChanges = false;
+      document.getElementById('changes-panel').style.display = 'none';
+      updateChangesToggleLabel();
+    }
     document.getElementById('empty-state').style.display = 'none';
     document.getElementById('req-editor').style.display  = 'none';
     document.getElementById('hist-panel').style.display  = 'flex';
@@ -278,6 +288,290 @@ async function clearHistory() {
   state.hist = [];
   renderHistPanel();
   scheduleDiskSave();
+}
+
+// ─── Change Tracking ──────────────────────────────────────────────────────────
+
+function snapshotAllRequests() {
+  state.snapshots = new Map();
+  for (const col of state.cols) {
+    for (const req of col.requests) state.snapshots.set(req.id, clone(req));
+    for (const folder of col.folders)
+      for (const req of folder.requests) state.snapshots.set(req.id, clone(req));
+  }
+}
+
+// Fingerprint of the user-editable fields of a request — excludes ephemeral
+// fields (id, cached OAuth tokens, comments, description, mock, examples).
+function reqFingerprint(r) {
+  return JSON.stringify({
+    name: r.name, method: r.method, url: r.url, protocol: r.protocol,
+    params: r.params, pathVars: r.pathVars, headers: r.headers, body: r.body,
+    auth: {
+      type: r.auth.type, token: r.auth.token,
+      username: r.auth.username, password: r.auth.password,
+      apiKey: r.auth.apiKey, apiValue: r.auth.apiValue,
+      accessTokenUrl: r.auth.accessTokenUrl, clientId: r.auth.clientId,
+      clientSecret: r.auth.clientSecret, scope: r.auth.scope,
+      jwtSecret: r.auth.jwtSecret, jwtPayload: r.auth.jwtPayload,
+    },
+    preRequestScript: r.preRequestScript, testScript: r.testScript,
+  });
+}
+
+function getChangedRequests() {
+  const changed = [];
+  for (const col of state.cols) {
+    for (const req of col.requests) {
+      const orig = state.snapshots.get(req.id);
+      if (orig && reqFingerprint(req) !== reqFingerprint(orig))
+        changed.push({ req, original: orig, col, folder: null });
+    }
+    for (const folder of col.folders) {
+      for (const req of folder.requests) {
+        const orig = state.snapshots.get(req.id);
+        if (orig && reqFingerprint(req) !== reqFingerprint(orig))
+          changed.push({ req, original: orig, col, folder });
+      }
+    }
+  }
+  return changed;
+}
+
+function updateChangesBadge() {
+  const count = getChangedRequests().length;
+  const badge = document.getElementById('changes-badge');
+  if (badge) {
+    badge.textContent = count || '';
+    badge.style.display = count ? 'inline-flex' : 'none';
+  }
+  if (state.showChanges) renderChangesPanel();
+}
+
+function updateChangesToggleLabel() {
+  const btn = document.getElementById('changes-toggle');
+  if (!btn) return;
+  const count = getChangedRequests().length;
+  const badgeHtml = count ? `<span id="changes-badge" class="changes-badge">${count}</span>` : `<span id="changes-badge" class="changes-badge" style="display:none"></span>`;
+  btn.innerHTML = `✎ Changes ${badgeHtml}`;
+}
+
+function toggleChangesPanel() {
+  state.showChanges = !state.showChanges;
+
+  if (state.showChanges) {
+    if (state.showHist) {
+      state.showHist = false;
+      document.getElementById('hist-panel').style.display = 'none';
+      document.getElementById('hist-toggle').textContent = '⏱ History';
+    }
+    document.getElementById('changes-toggle').textContent = '◀ Back to Request';
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('req-editor').style.display  = 'none';
+    document.getElementById('changes-panel').style.display = 'flex';
+    renderChangesPanel();
+  } else {
+    document.getElementById('changes-panel').style.display = 'none';
+    updateChangesToggleLabel();
+    if (activeTab()) showReqEditor();
+    else showEmptyState();
+  }
+}
+
+// Compares two kv arrays (params/headers/formData) and returns a list of
+// added/removed/changed entries keyed by `key`.
+function diffKvArray(origArr, currArr) {
+  const orig = (origArr || []).filter(r => r.key);
+  const curr = (currArr || []).filter(r => r.key);
+  const changes = [];
+
+  // Group by key to handle duplicates
+  const group = arr => arr.reduce((m, r) => {
+    (m[r.key] = m[r.key] || []).push(r); return m;
+  }, {});
+  const oMap = group(orig), cMap = group(curr);
+  const allKeys = new Set([...Object.keys(oMap), ...Object.keys(cMap)]);
+
+  for (const key of allKeys) {
+    const oRows = oMap[key] || [], cRows = cMap[key] || [];
+    const max = Math.max(oRows.length, cRows.length);
+    for (let i = 0; i < max; i++) {
+      const o = oRows[i], c = cRows[i];
+      if (!o) changes.push({ type: 'added',   key, val: c.value, enabled: c.enabled });
+      else if (!c) changes.push({ type: 'removed', key, val: o.value, enabled: o.enabled });
+      else if (o.value !== c.value) changes.push({ type: 'changed', key, oldVal: o.value, newVal: c.value });
+      else if (o.enabled !== c.enabled) changes.push({ type: 'toggled', key, val: o.value, enabled: c.enabled });
+    }
+  }
+  return changes;
+}
+
+function buildChangeDiff(req, orig) {
+  const rows = [];
+  const simple = (field, oldVal, newVal) => rows.push({ field, oldVal: String(oldVal), newVal: String(newVal) });
+  const note   = (field, msg)            => rows.push({ field, note: msg });
+  const kv     = (field, origArr, currArr) => {
+    const items = diffKvArray(origArr, currArr);
+    if (items.length) rows.push({ field, kv: items });
+  };
+
+  if (req.name   !== orig.name)   simple('name',   orig.name,   req.name);
+  if (req.method !== orig.method) simple('method', orig.method, req.method);
+  if (req.url    !== orig.url)    simple('url',    orig.url || '(empty)', req.url || '(empty)');
+
+  kv('params',  orig.params,  req.params);
+  kv('headers', orig.headers, req.headers);
+
+  if ((orig.body?.type || 'none') !== (req.body?.type || 'none'))
+    simple('body', orig.body?.type || 'none', req.body?.type || 'none');
+  else if (req.body?.type === 'formdata')
+    kv('body', orig.body?.formData, req.body?.formData);
+  else if (req.body?.type === 'raw' && orig.body?.raw !== req.body?.raw)
+    note('body', 'raw content edited');
+  else if (JSON.stringify(orig.body) !== JSON.stringify(req.body))
+    note('body', 'modified');
+
+  if ((orig.auth?.type || 'none') !== (req.auth?.type || 'none'))
+    simple('auth', orig.auth?.type || 'none', req.auth?.type || 'none');
+  else {
+    const strip = a => { const c = { ...a }; delete c.cachedToken; delete c.cachedExpiry; delete c.cachedRefreshToken; return c; };
+    if (JSON.stringify(strip(orig.auth)) !== JSON.stringify(strip(req.auth)))
+      note('auth', 'credentials modified');
+  }
+
+  const ps = s => !!(s?.trim());
+  if (ps(orig.preRequestScript) !== ps(req.preRequestScript))
+    simple('pre-request script', ps(orig.preRequestScript) ? 'yes' : 'no', ps(req.preRequestScript) ? 'yes' : 'no');
+  else if (orig.preRequestScript !== req.preRequestScript)
+    note('pre-request script', 'edited');
+  if (ps(orig.testScript) !== ps(req.testScript))
+    simple('test script', ps(orig.testScript) ? 'yes' : 'no', ps(req.testScript) ? 'yes' : 'no');
+  else if (orig.testScript !== req.testScript)
+    note('test script', 'edited');
+
+  return rows;
+}
+
+function renderChangesPanel() {
+  const list = document.getElementById('changes-list');
+  const changed = getChangedRequests();
+
+  if (!changed.length) {
+    list.innerHTML = `<p class="changes-empty">No unsaved changes.</p>`;
+    return;
+  }
+
+  const byCol = new Map();
+  for (const entry of changed) {
+    if (!byCol.has(entry.col.id)) byCol.set(entry.col.id, { col: entry.col, entries: [] });
+    byCol.get(entry.col.id).entries.push(entry);
+  }
+
+  list.innerHTML = [...byCol.values()].map(({ col, entries }) => `
+    <div class="changes-col-group">
+      <div class="changes-col-name">${esc(col.name)}</div>
+      ${entries.map(({ req, original, folder }) => {
+        const color = MC[req.method] || 'var(--text)';
+        const path  = folder ? esc(folder.name) : '';
+        const diff  = buildChangeDiff(req, original);
+        const diffHtml = diff.map(({ field, oldVal, newVal, note, kv }) => {
+          if (kv) {
+            const kvHtml = kv.map(c => {
+              if (c.type === 'added')
+                return `<div class="changes-diff-kv-row"><span class="changes-diff-new">+ ${esc(c.key)}: ${esc(c.val)}</span></div>`;
+              if (c.type === 'removed')
+                return `<div class="changes-diff-kv-row"><span class="changes-diff-old">− ${esc(c.key)}: ${esc(c.val)}</span></div>`;
+              if (c.type === 'changed')
+                return `<div class="changes-diff-kv-row"><span class="changes-diff-kv-key">${esc(c.key)}:</span> <span class="changes-diff-old">${esc(c.oldVal)}</span> <span class="changes-diff-arrow">→</span> <span class="changes-diff-new">${esc(c.newVal)}</span></div>`;
+              if (c.type === 'toggled')
+                return `<div class="changes-diff-kv-row"><span class="changes-diff-kv-key">${esc(c.key)}:</span> <span class="changes-diff-note">${c.enabled ? 'enabled' : 'disabled'}</span></div>`;
+              return '';
+            }).join('');
+            return `<div class="changes-diff-row changes-diff-row-kv">
+              <span class="changes-diff-field">${esc(field)}</span>
+              <div class="changes-diff-kv">${kvHtml}</div>
+            </div>`;
+          }
+          return `<div class="changes-diff-row">
+            <span class="changes-diff-field">${esc(field)}</span>
+            ${note
+              ? `<span class="changes-diff-note">${esc(note)}</span>`
+              : `<span class="changes-diff-old">${esc(oldVal)}</span> <span class="changes-diff-arrow">→</span> <span class="changes-diff-new">${esc(newVal)}</span>`}
+          </div>`;
+        }).join('');
+        return `
+          <div class="changes-req-row">
+            <div class="changes-req-top">
+              <span class="req-method" style="color:${color};font-weight:700;font-size:10px;min-width:46px">${esc(req.method)}</span>
+              <span class="changes-req-name">${esc(req.name)}${path ? `<span class="changes-req-path"> · ${path}</span>` : ''}</span>
+              <div class="changes-actions">
+                <button onclick="openChangedReq('${req.id}')">Open</button>
+                <button class="btn-reset" onclick="resetReqChange('${req.id}')">Reset</button>
+                <button onclick="toggleChangeDiff('${req.id}')" id="diff-btn-${req.id}">▼</button>
+              </div>
+            </div>
+            <div class="changes-diff" id="diff-${req.id}" style="display:none">${diffHtml}</div>
+          </div>`;
+      }).join('')}
+    </div>`).join('');
+}
+
+function toggleChangeDiff(reqId) {
+  const diff = document.getElementById(`diff-${reqId}`);
+  const btn  = document.getElementById(`diff-btn-${reqId}`);
+  if (!diff) return;
+  const open = diff.style.display === 'none';
+  diff.style.display = open ? 'block' : 'none';
+  if (btn) btn.textContent = open ? '▲' : '▼';
+}
+
+function openChangedReq(reqId) {
+  state.showChanges = false;
+  document.getElementById('changes-panel').style.display = 'none';
+  updateChangesToggleLabel();
+  openTab(reqId);
+  if (activeTab()) showReqEditor();
+  else showEmptyState();
+}
+
+function resetReqChange(reqId) {
+  const orig = state.snapshots.get(reqId);
+  if (!orig) return;
+  const restored = clone(orig);
+  state.cols = state.cols.map(c => ({
+    ...c,
+    requests: c.requests.map(r => r.id === reqId ? restored : r),
+    folders:  c.folders.map(f => ({ ...f, requests: f.requests.map(r => r.id === reqId ? restored : r) })),
+  }));
+  const tab = state.tabs.find(t => t.reqId === reqId);
+  if (tab) {
+    tab.req = clone(restored);
+    if (activeTab()?.id === tab.id) renderReqPanel();
+  }
+  scheduleDiskSave();
+  updateChangesBadge();
+}
+
+async function resetAllChanges() {
+  const changed = getChangedRequests();
+  if (!changed.length) return;
+  const n = changed.length;
+  if (!await confirmDialog(`Reset ${n} changed request${n > 1 ? 's' : ''} to their last saved state?`, { okLabel: 'Reset All', danger: true })) return;
+  for (const { req } of changed) {
+    const orig = state.snapshots.get(req.id);
+    if (!orig) continue;
+    const restored = clone(orig);
+    state.cols = state.cols.map(c => ({
+      ...c,
+      requests: c.requests.map(r => r.id === req.id ? restored : r),
+      folders:  c.folders.map(f => ({ ...f, requests: f.requests.map(r => r.id === req.id ? restored : r) })),
+    }));
+    const tab = state.tabs.find(t => t.reqId === req.id);
+    if (tab) tab.req = clone(restored);
+  }
+  if (activeTab()) renderReqPanel();
+  scheduleDiskSave();
+  updateChangesBadge();
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────

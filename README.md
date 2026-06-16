@@ -136,7 +136,7 @@ All JS files share the global scope and load in order. `state.js` must be first 
 
 ## Data storage (`data/`)
 
-`data/` is gitignored — it holds your local collections, environments, and history as plain JSON files.
+`data/` is gitignored — it holds your local collections, environments, and history as plain JSON files. Each machine running Salvo has its own independent `data/` folder; there is no cloud sync and no shared state between computers. To move collections between machines, use [Export / Import](#export--import) — export on one machine and import on another. For continuous sharing, see [Sharing `data/`](#sharing-data-local-network-sync).
 
 - **Collections are directories**: `data/<Collection Name>/`
 - **Requests are files**: `data/<Collection Name>/<Request Name>.json`

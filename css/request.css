@@ -119,6 +119,10 @@
 .kv-add          { color: var(--accent); margin-top: 4px; }
 .kv-add:hover    { background: none !important; opacity: .8; }
 
+.kv-row.kv-disabled input:not([type=checkbox]),
+.kv-row.kv-disabled select,
+.kv-row.kv-disabled .kv-file-cell { opacity: .45; }
+
 /* ─── Bulk Edit ──────────────────────────────────────────────────────────────── */
 .kv-bulk-bar      { display: flex; justify-content: flex-end; margin-bottom: 6px; }
 .kv-bulk-toggle   { color: var(--accent); font-size: 11px; padding: 2px 6px; }

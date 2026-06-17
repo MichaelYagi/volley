@@ -624,8 +624,8 @@ function kvEditorHTML(rows, key) {
   const isFormData = key === 'formData';
 
   rows.forEach((row, i) => {
-    const op = row.enabled ? 1 : .45;
     const conflict = authHeaderKeys && row.enabled && row.key && authHeaderKeys.has(row.key.toLowerCase());
+    const disabledCls = row.enabled ? '' : ' kv-disabled';
     const suggestAttrs = field => key === 'headers'
       ? `id="kv-${field}-headers-${i}"
                onfocus="showHeaderSuggest(${i},'${field}')"
@@ -641,22 +641,21 @@ function kvEditorHTML(rows, key) {
     if (isFormData) {
       const isFile = row.type === 'file';
       html += `
-        <div class="kv-grid-formdata${conflict ? ' kv-conflict' : ''}"
+        <div class="kv-row kv-grid-formdata${conflict ? ' kv-conflict' : ''}${disabledCls}"
              ondragover="kvRowDragOver(event,'${key}',${i})" ondragleave="kvRowDragLeave(event)"
              ondrop="kvRowDrop(event,'${key}',${i})">
           <span class="kv-drag-handle" draggable="true" ondragstart="kvDragStart(event,'${key}',${i})" ondragend="kvDragEnd(event)">&#8942;&#8942;</span>
-          <input type="checkbox" ${row.enabled ? 'checked' : ''} onchange="kvToggle('${key}',${i},this.checked)">
+          <input type="checkbox" ${row.enabled ? 'checked' : ''} onchange="kvToggle('${key}',${i},this.checked);this.closest('.kv-row').classList.toggle('kv-disabled',!this.checked)">
           <input value="${esc(row.key)}"
                  onkeydown="varSuggestKeydown(this,event)" onblur="varSuggestBlur()"
                  oninput="kvSet('${key}',${i},'key',this.value);showVarSuggest(this)"
-                 placeholder="name"
-                 style="opacity:${op}">
-          <select onchange="kvFormDataTypeChange(${i},this.value)" style="opacity:${op}">
+                 placeholder="name">
+          <select onchange="kvFormDataTypeChange(${i},this.value)">
             <option value="text" ${!isFile ? 'selected' : ''}>Text</option>
             <option value="file" ${isFile ? 'selected' : ''}>File</option>
           </select>
           ${isFile
-            ? `<div class="kv-file-cell" style="opacity:${op}">
+            ? `<div class="kv-file-cell">
                  <input type="file" id="kv-formdata-file-${i}" style="display:none" onchange="kvFormDataFile(${i},this)">
                  <button type="button" class="kv-file-btn" onclick="document.getElementById('kv-formdata-file-${i}').click()">Choose File</button>
                  <span class="kv-file-name">${row.fileName ? esc(row.fileName) + (row.fileSize != null ? ` (${formatBytes(row.fileSize)})` : '') : 'No file selected'}</span>
@@ -664,35 +663,31 @@ function kvEditorHTML(rows, key) {
             : `<input value="${esc(row.value)}"
                  onkeydown="varSuggestKeydown(this,event)" onblur="varSuggestBlur()"
                  oninput="kvSet('${key}',${i},'value',this.value);showVarSuggest(this)"
-                 placeholder="value"
-                 style="opacity:${op}">`}
+                 placeholder="value">`}
           <button class="kv-del" onclick="kvDel('${key}',${i})">×</button>
         </div>`;
       return;
     }
 
     html += `
-      <div class="${hasNotes ? 'kv-grid-notes' : 'kv-grid'}${conflict ? ' kv-conflict' : ''}"
+      <div class="kv-row ${hasNotes ? 'kv-grid-notes' : 'kv-grid'}${conflict ? ' kv-conflict' : ''}${disabledCls}"
            ${conflict ? `title="This header will be overridden by the Auth tab's ${esc(row.key)} value when the request is sent"` : ''}
            ondragover="kvRowDragOver(event,'${key}',${i})" ondragleave="kvRowDragLeave(event)"
            ondrop="kvRowDrop(event,'${key}',${i})">
         <span class="kv-drag-handle" draggable="true" ondragstart="kvDragStart(event,'${key}',${i})" ondragend="kvDragEnd(event)">&#8942;&#8942;</span>
-        <input type="checkbox" ${row.enabled ? 'checked' : ''} onchange="kvToggle('${key}',${i},this.checked)">
+        <input type="checkbox" ${row.enabled ? 'checked' : ''} onchange="kvToggle('${key}',${i},this.checked);this.closest('.kv-row').classList.toggle('kv-disabled',!this.checked)">
         <input value="${esc(row.key)}"
                ${suggestAttrs('key')}
                oninput="kvSet('${key}',${i},'key',this.value);${varInput('key')}"
-               placeholder="name"
-               style="opacity:${op}">
+               placeholder="name">
         <input value="${esc(row.value)}"
                ${suggestAttrs('value')}
                oninput="kvSet('${key}',${i},'value',this.value);${varInput('value')}"
-               placeholder="value"
-               style="opacity:${op}">
+               placeholder="value">
         ${hasNotes ? `<input value="${esc(row.note || '')}"
                oninput="kvSet('${key}',${i},'note',this.value)"
                placeholder="note"
-               class="kv-note"
-               style="opacity:${op}">` : ''}
+               class="kv-note">` : ''}
         <button class="kv-del" onclick="kvDel('${key}',${i})">×</button>
       </div>`;
   });
@@ -733,14 +728,13 @@ function kvComputedSectionsHTML(key) {
       html += `<div class="kv-computed-label">Auto-generated</div>`;
       computed.forEach(h => {
         const enabled = !isAutoHeaderDisabled(req, h.key);
-        const op = enabled ? 1 : .45;
         html += `
-          <div class="kv-grid-notes kv-computed">
+          <div class="kv-row kv-grid-notes kv-computed${enabled ? '' : ' kv-disabled'}">
             <span></span>
-            <input type="checkbox" ${enabled ? 'checked' : ''} onchange="toggleAutoHeader('${esc(h.key)}',this.checked)">
-            <input value="${esc(h.key)}" disabled style="opacity:${op}">
-            <input value="${esc(h.value)}" disabled style="opacity:${op}">
-            <input value="" disabled class="kv-note" placeholder="${esc(h.source)}" style="opacity:${op}">
+            <input type="checkbox" ${enabled ? 'checked' : ''} onchange="toggleAutoHeader('${esc(h.key)}',this.checked);this.closest('.kv-row').classList.toggle('kv-disabled',!this.checked)">
+            <input value="${esc(h.key)}" disabled>
+            <input value="${esc(h.value)}" disabled>
+            <input value="" disabled class="kv-note" placeholder="${esc(h.source)}">
             <span></span>
           </div>`;
       });

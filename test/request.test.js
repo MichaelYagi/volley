@@ -176,11 +176,11 @@ test('kvComputedSectionsHTML renders the Auto-generated checkbox checked by defa
   sandbox.setActiveTab(makeTab(req));
 
   let html = sandbox.kvComputedSectionsHTML('headers');
-  assert.match(html, /<input type="checkbox" checked onchange="toggleAutoHeader\('Authorization',this\.checked\)">/);
+  assert.match(html, /<input type="checkbox" checked onchange="toggleAutoHeader\('Authorization',this\.checked\);this\.closest\('\.kv-row'\)\.classList\.toggle\('kv-disabled',!this\.checked\)">/);
 
   req.disabledAutoHeaders = ['authorization'];
   html = sandbox.kvComputedSectionsHTML('headers');
-  assert.match(html, /<input type="checkbox"  onchange="toggleAutoHeader\('Authorization',this\.checked\)">/);
+  assert.match(html, /<input type="checkbox"  onchange="toggleAutoHeader\('Authorization',this\.checked\);this\.closest\('\.kv-row'\)\.classList\.toggle\('kv-disabled',!this\.checked\)">/);
 });
 
 test('computedCookieHeader adds a Cookie header for cookies matching the request URL', () => {

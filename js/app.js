@@ -579,5 +579,34 @@ async function resetAllChanges() {
   syncMockRoutes();
 }
 
+// ─── Server status indicator ──────────────────────────────────────────────────
+(function startServerPoll() {
+  const dot     = document.getElementById('server-status');
+  const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('salvo-server-status') : null;
+  let online    = true;
+
+  function applyStatus(nowOnline) {
+    if (nowOnline === online) return;
+    online = nowOnline;
+    dot.className = 'server-dot ' + (online ? 'server-dot-online' : 'server-dot-offline');
+    dot.title     = online ? 'Server online' : 'Server offline';
+  }
+
+  if (channel) channel.onmessage = e => applyStatus(e.data);
+
+  async function check() {
+    if (document.visibilityState === 'hidden') { setTimeout(check, 5000); return; }
+    let nowOnline;
+    try {
+      const res = await fetch('/api/ping', { signal: AbortSignal.timeout(2000) });
+      nowOnline = res.ok;
+    } catch { nowOnline = false; }
+    applyStatus(nowOnline);
+    if (channel) channel.postMessage(nowOnline);
+    setTimeout(check, 5000);
+  }
+  check();
+})();
+
 // ─── Boot ─────────────────────────────────────────────────────────────────────
 init().catch(err => notify(err.message, 'error'));

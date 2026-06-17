@@ -48,6 +48,16 @@ html, body {
 .tb-div  { color: var(--border); font-size: 20px; line-height: 1; }
 .sep     { flex: 1; }
 
+.server-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  cursor: default;
+  transition: background .3s;
+}
+.server-dot-online  { background: #3fb950; box-shadow: 0 0 4px #3fb95066; }
+.server-dot-offline { background: var(--danger); box-shadow: 0 0 4px var(--danger-bg); }
+
 /* ─── Sidebar Toggle (mobile only) ──────────────────────────────────────────── */
 #sidebar-toggle {
   display: none;

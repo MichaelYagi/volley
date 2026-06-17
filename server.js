@@ -690,8 +690,15 @@ const server = http.createServer((req, res) => {
   const u = new URL(req.url, `http://${req.headers.host}`);
 
   res.on('finish', () => {
-    log('INFO', `${req.method} ${u.pathname} ${res.statusCode} ${Date.now() - start}ms`);
+    if (u.pathname !== '/api/ping')
+      log('INFO', `${req.method} ${u.pathname} ${res.statusCode} ${Date.now() - start}ms`);
   });
+
+  if (u.pathname === '/api/ping') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end('{"ok":true}');
+    return;
+  }
 
   if (u.pathname === '/api/data' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });

@@ -58,6 +58,19 @@ function applyProtocolUI(protocol) {
 
 // ─── Method / protocol / name change handlers (called from inline HTML events) ─
 
+function onUrlInput(v) {
+  const tab = activeTab();
+  if (!tab) return;
+  tab.req.url = v;
+  syncParamsFromUrl();
+  syncPathVarsFromUrl();
+  scheduleAutoSave();
+  updateTabBadges();
+  renderReqPanel();
+  syncTabIntoCols(tab);
+  syncMockRoutes();
+}
+
 function onMethodChange() {
   const tab = activeTab();
   const v = document.getElementById('method-select').value;
@@ -69,6 +82,7 @@ function onMethodChange() {
 
   const r = findReq(tab.reqId);
   if (r) { r.method = v; renderSidebar(); }
+  syncMockRoutes();
 }
 
 function onProtocolChange() {
@@ -763,6 +777,7 @@ function kvToggle(key, i, v) {
   if (key === 'envVars' || key === 'globalVars') return scheduleDiskSave();
   if (key === 'params') syncUrlFromParams();
   scheduleAutoSave(); updateTabBadges();
+  if (key === 'mockHeaders') { syncTabIntoCols(activeTab()); syncMockRoutes(); }
   if (activeTab().reqTab === 'curl') renderReqPanel();
 }
 function kvSet(key, i, field, v) {
@@ -770,13 +785,16 @@ function kvSet(key, i, field, v) {
   if (key === 'envVars' || key === 'globalVars') return scheduleDiskSave();
   if (key === 'params' && (field === 'key' || field === 'value')) syncUrlFromParams();
   scheduleAutoSave(); updateTabBadges();
+  if (key === 'mockHeaders') { syncTabIntoCols(activeTab()); syncMockRoutes(); }
   if (activeTab().reqTab === 'curl') renderReqPanel();
 }
 function kvDel(key, i) {
   getKvTarget(key).splice(i, 1);
   if (key === 'envVars' || key === 'globalVars') { scheduleDiskSave(); renderEnvDetail(); return; }
   if (key === 'params') syncUrlFromParams();
-  scheduleAutoSave(); updateTabBadges(); renderReqPanel();
+  scheduleAutoSave(); updateTabBadges();
+  if (key === 'mockHeaders') { syncTabIntoCols(activeTab()); syncMockRoutes(); }
+  renderReqPanel();
 }
 // ─── KV Row Drag & Drop Reordering ────────────────────────────────────────────
 let _kvDragKey   = null;
@@ -839,7 +857,9 @@ function kvAdd(key) {
   if (key === 'formData') row.type = 'text';
   getKvTarget(key).push(row);
   if (key === 'envVars' || key === 'globalVars') { scheduleDiskSave(); renderEnvDetail(); return; }
-  scheduleAutoSave(); renderReqPanel();
+  scheduleAutoSave();
+  if (key === 'mockHeaders') { syncTabIntoCols(activeTab()); syncMockRoutes(); }
+  renderReqPanel();
 }
 
 // Switches a form-data row between a plain text value and a file upload.
@@ -1415,6 +1435,7 @@ async function deleteExample(id) {
 
 function mockHTML(req) {
   const m = req.mock;
+  const dis = !m.enabled;
   return `
     <div class="mock-editor">
       <label class="mock-enable" style="display:flex;align-items:center;gap:6px;cursor:pointer">
@@ -1425,25 +1446,30 @@ function mockHTML(req) {
         <strong>${esc(req.method)} ${esc(extractMockPath(req.url))}</strong> with the response below
         instead of forwarding to a real server.</p>
 
-      <label>Status Code</label>
-      <input type="number" value="${m.status}" style="width:120px"
-             oninput="mockSet('status', parseInt(this.value,10) || 200)">
+      <div class="mock-fields${dis ? ' mock-fields-disabled' : ''}">
+        <label>Status Code</label>
+        <input type="number" value="${m.status}" style="width:120px" ${dis ? 'disabled' : ''}
+               oninput="mockSet('status', parseInt(this.value,10) || 200)">
 
-      <label style="margin-top:12px">Headers</label>
-      ${kvEditorHTML(m.headers, 'mockHeaders')}
+        <label style="margin-top:12px">Headers</label>
+        ${kvEditorHTML(m.headers, 'mockHeaders')}
 
-      <label style="margin-top:12px">Delay (ms)</label>
-      <input type="number" value="${m.delay}" min="0" style="width:120px"
-             oninput="mockSet('delay', parseInt(this.value,10) || 0)">
+        <label style="margin-top:12px">Delay (ms)</label>
+        <input type="number" value="${m.delay}" min="0" style="width:120px" ${dis ? 'disabled' : ''}
+               oninput="mockSet('delay', parseInt(this.value,10) || 0)">
 
-      <label style="margin-top:12px">Body</label>
-      <textarea id="mock-body-area" oninput="mockSet('body',this.value)">${esc(m.body)}</textarea>
+        <label style="margin-top:12px">Body</label>
+        <textarea id="mock-body-area" ${dis ? 'disabled' : ''} oninput="mockSet('body',this.value)">${esc(m.body)}</textarea>
+      </div>
     </div>`;
 }
 
 function mockSet(field, v) {
-  activeTab().req.mock[field] = v;
+  const tab = activeTab();
+  tab.req.mock[field] = v;
+  syncTabIntoCols(tab);   // flush immediately so buildMockRoutes sees the change
   scheduleAutoSave();
   updateTabBadges();
   if (field === 'enabled') renderReqPanel();
+  syncMockRoutes();
 }

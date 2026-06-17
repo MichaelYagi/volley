@@ -116,7 +116,7 @@
           </select>
           <input id="url-input" type="text"
                  placeholder="https://api.example.com/endpoint {{var}}"
-                 oninput="activeTab().req.url=this.value;syncParamsFromUrl();syncPathVarsFromUrl();scheduleAutoSave();updateTabBadges();renderReqPanel();showVarSuggest(this);updateSendBtn()"
+                 oninput="onUrlInput(this.value);showVarSuggest(this)"
                  onkeydown="varSuggestKeydown(this,event) || (event.key==='Enter' && sendRequest())"
                  onblur="varSuggestBlur()">
           <button id="send-btn" class="btn-primary" onclick="sendRequest()">Send</button>

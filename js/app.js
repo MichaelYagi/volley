@@ -553,6 +553,7 @@ function resetReqChange(reqId) {
   }
   scheduleDiskSave();
   updateChangesBadge();
+  syncMockRoutes();
 }
 
 async function resetAllChanges() {
@@ -575,6 +576,7 @@ async function resetAllChanges() {
   if (activeTab()) renderReqPanel();
   scheduleDiskSave();
   updateChangesBadge();
+  syncMockRoutes();
 }
 
 // ─── Boot ─────────────────────────────────────────────────────────────────────

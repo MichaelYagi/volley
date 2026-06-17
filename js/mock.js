@@ -124,3 +124,16 @@ async function refreshMockServerStatus() {
   updateMockServerBadge();
   if (activeTab()?.reqTab === 'curl') renderReqPanel();
 }
+
+async function syncMockRoutes() {
+  if (!_mockStatus?.running) return;
+  try {
+    const res = await fetch('/api/mock/update', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ routes: buildMockRoutes() }),
+    });
+    const data = await res.json();
+    if (data.ok) _mockStatus.routes = data.routes;
+  } catch { /* silent — server may have been stopped externally */ }
+}

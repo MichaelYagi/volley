@@ -624,10 +624,10 @@ function findMockMatch(routes, method, pathname) {
   }) || null;
 }
 
-function createMockServer(routes) {
+function createMockServer() {
   return http.createServer((req, res) => {
     const u = new URL(req.url, 'http://localhost');
-    const match = findMockMatch(routes, req.method, u.pathname);
+    const match = findMockMatch(mockState.routes, req.method, u.pathname);
 
     if (!match) {
       res.writeHead(404, { 'Content-Type': 'application/json' });
@@ -653,13 +653,13 @@ function createMockServer(routes) {
 function startMockServer(port, routes) {
   return new Promise((resolve, reject) => {
     if (mockServer) { reject(new Error('Mock server already running')); return; }
-    const srv = createMockServer(routes || []);
+    mockState = { port: null, routes: routes || [] };
+    const srv = createMockServer();
     srv.once('error', reject);
     srv.listen(port, () => {
       mockServer = srv;
-      const actualPort = srv.address().port;
-      mockState  = { port: actualPort, routes: routes || [] };
-      resolve({ port: actualPort, routes: mockState.routes.length });
+      mockState.port = srv.address().port;
+      resolve({ port: mockState.port, routes: mockState.routes.length });
     });
   });
 }
@@ -673,6 +673,11 @@ function stopMockServer() {
       resolve();
     });
   });
+}
+
+function updateMockRoutes(routes) {
+  if (!mockServer) throw new Error('Mock server is not running');
+  mockState.routes = routes || [];
 }
 
 function mockStatus() {
@@ -793,6 +798,23 @@ const server = http.createServer((req, res) => {
     stopMockServer().then(() => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
+    });
+    return;
+  }
+
+  if (u.pathname === '/api/mock/update' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const { routes } = JSON.parse(body || '{}');
+        updateMockRoutes(routes);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, routes: mockState.routes.length }));
+      } catch (err) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
     });
     return;
   }

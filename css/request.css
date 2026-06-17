@@ -268,6 +268,8 @@
 .mock-editor label   { display: block; color: var(--text-muted); font-size: 11px; margin: 0 0 4px; }
 .mock-editor .muted  { font-size: 11px; line-height: 1.5; margin: 8px 0 12px; }
 .mock-editor .mock-enable { color: var(--text); font-size: 13px; margin-bottom: 4px; }
+.mock-fields { transition: opacity .15s; }
+.mock-fields-disabled { opacity: 0.4; pointer-events: none; }
 #mock-body-area {
   width: 100%;
   font-family: monospace;

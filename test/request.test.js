@@ -44,6 +44,8 @@ function loadSandbox() {
     let _activeTab = null;
     function activeTab() { return _activeTab; }
     function scheduleDiskSave() {}
+    function syncMockRoutes() {}
+    function syncTabIntoCols() {}
     function confirmDialog() { return Promise.resolve(true); }
     globalThis.state = state;
     globalThis.setActiveTab = t => { _activeTab = t; };

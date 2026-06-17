@@ -40,6 +40,7 @@ function loadSandbox() {
     function renderSidebar() {}
     function renderEnvSelect() {}
     function scheduleDiskSave() {}
+    function syncMockRoutes() {}
     function notify() {}
     globalThis.state = state;
   `, sandbox, { filename: 'stubs.js' });

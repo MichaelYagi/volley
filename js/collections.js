@@ -58,6 +58,7 @@ async function deleteCol(id) {
   state.cols = state.cols.filter(c => c.id !== id);
   renderSidebar();
   scheduleDiskSave();
+  syncMockRoutes();
 }
 
 function exportCol(id) {
@@ -283,6 +284,7 @@ async function deleteReqs(ids) {
   if (activeTab()) showReqEditor();
   else showEmptyState();
   scheduleDiskSave();
+  syncMockRoutes();
 }
 
 // ─── Drag & drop reordering ───────────────────────────────────────────────────

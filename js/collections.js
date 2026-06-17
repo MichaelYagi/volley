@@ -555,42 +555,120 @@ function confirmImport() {
   notify(parts.length ? `Imported: ${parts.join(', ')}` : 'Nothing changed', 'success');
 }
 
-// Dispatches based on JSON shape: a Salvo export ({ cols }) opens the import
-// preview modal; a Postman v2.x collection ({ info, item }) is added as a new
-// collection; a Postman environment export is merged var-by-var.
+// ─── Import dropdown ─────────────────────────────────────────────────────────
+
+function toggleImportDropdown() {
+  const menu = document.getElementById('import-dropdown-menu');
+  const open = menu.style.display !== 'none';
+  if (open) { closeImportDropdown(); return; }
+  menu.style.display = 'flex';
+  setTimeout(() => document.addEventListener('click', _importDropdownOutside, { once: true }), 0);
+}
+
+function closeImportDropdown() {
+  document.getElementById('import-dropdown-menu').style.display = 'none';
+}
+
+function _importDropdownOutside(e) {
+  if (!document.getElementById('import-dropdown').contains(e.target)) closeImportDropdown();
+}
+
+// ─── URL import modal ─────────────────────────────────────────────────────────
+
+function openUrlImportModal() {
+  const input = document.getElementById('url-import-input');
+  const err   = document.getElementById('url-import-error');
+  input.value = '';
+  err.style.display = 'none';
+  document.getElementById('url-import-btn').disabled = false;
+  document.getElementById('url-import-modal').style.display = 'flex';
+  input.focus();
+}
+
+function closeUrlImportModal() {
+  document.getElementById('url-import-modal').style.display = 'none';
+}
+
+async function fetchImportFromUrl() {
+  const input = document.getElementById('url-import-input');
+  const err   = document.getElementById('url-import-error');
+  const btn   = document.getElementById('url-import-btn');
+  const url   = input.value.trim();
+
+  if (!url) { showUrlImportError('Please enter a URL.'); return; }
+
+  btn.disabled  = true;
+  btn.textContent = 'Fetching…';
+  err.style.display = 'none';
+
+  try {
+    const res = await fetch('/api/proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ method: 'GET', url, headers: {}, skipCookieJar: true }),
+    });
+    const envelope = await res.json();
+    if (!envelope.ok) throw new Error(envelope.error || `Request failed`);
+    if (envelope.status < 200 || envelope.status >= 300)
+      throw new Error(`Server returned ${envelope.status}`);
+
+    let text, data;
+    try { text = atob(envelope.bodyBase64); } catch { throw new Error('Could not decode response.'); }
+    try { data = JSON.parse(text); } catch { throw new Error('Response is not valid JSON.'); }
+
+    closeUrlImportModal();
+    await importAnyData(data);
+  } catch (e) {
+    showUrlImportError(e.message || 'Failed to fetch URL.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Fetch & Preview';
+  }
+}
+
+function showUrlImportError(msg) {
+  const err = document.getElementById('url-import-error');
+  err.textContent = msg;
+  err.style.display = 'block';
+}
+
+// Dispatches based on JSON shape — shared by file and URL import paths.
+async function importAnyData(data) {
+  if (Array.isArray(data.cols)) {
+    openImportModal(data);
+  } else if (data.item) {
+    const col = parsePostman(data);
+    state.cols.push(col);
+    state.expandedCols.add(col.id);
+
+    let envMsg = '';
+    if (Array.isArray(data.variable) && data.variable.length) {
+      const { changed } = mergeEnvVars(col.name, data.variable.map(v => [v.key, v.value]));
+      if (changed) envMsg = `, ${changed} env var${changed === 1 ? '' : 's'}`;
+    }
+
+    renderSidebar();
+    renderEnvSelect();
+    scheduleDiskSave();
+    notify('Imported: ' + col.name + envMsg, 'success');
+  } else if (data._postman_variable_scope === 'environment' && Array.isArray(data.values)) {
+    const pairs = data.values.filter(v => v.enabled !== false).map(v => [v.key, v.value]);
+    const { envName, changed } = mergeEnvVars(data.name || 'Imported Environment', pairs);
+    renderEnvSelect();
+    scheduleDiskSave();
+    notify(`Imported environment "${envName}" (${changed} var${changed === 1 ? '' : 's'})`, 'success');
+  } else {
+    throw new Error('Not a Salvo export, Postman collection, or Postman environment');
+  }
+}
+
 async function importAny(event) {
   const file = event.target.files[0];
   if (!file) return;
 
   try {
     const data = JSON.parse(await file.text());
-
-    if (Array.isArray(data.cols)) {
-      openImportModal(data);
-    } else if (data.item) {
-      const col = parsePostman(data);
-      state.cols.push(col);
-      state.expandedCols.add(col.id);
-
-      let envMsg = '';
-      if (Array.isArray(data.variable) && data.variable.length) {
-        const { changed } = mergeEnvVars(col.name, data.variable.map(v => [v.key, v.value]));
-        if (changed) envMsg = `, ${changed} env var${changed === 1 ? '' : 's'}`;
-      }
-
-      renderSidebar();
-      renderEnvSelect();
-      scheduleDiskSave();
-      notify('Imported: ' + col.name + envMsg, 'success');
-    } else if (data._postman_variable_scope === 'environment' && Array.isArray(data.values)) {
-      const pairs = data.values.filter(v => v.enabled !== false).map(v => [v.key, v.value]);
-      const { envName, changed } = mergeEnvVars(data.name || 'Imported Environment', pairs);
-      renderEnvSelect();
-      scheduleDiskSave();
-      notify(`Imported environment "${envName}" (${changed} var${changed === 1 ? '' : 's'})`, 'success');
-    } else {
-      throw new Error('Not a Salvo export, Postman collection, or Postman environment');
-    }
+    await importAnyData(data);
   } catch (err) {
     notify('Import failed: ' + err.message, 'error');
   }

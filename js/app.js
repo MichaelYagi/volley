@@ -112,8 +112,10 @@ async function init() {
     opt.style.color = MC[opt.value] || 'var(--text)';
   });
 
+  applyFeatureFlags();
   refreshCookieJar().then(() => { if (activeTab()?.reqTab === 'headers') renderReqPanel(); });
   refreshMockServerStatus();
+  initGitSync();
   renderEnvSelect();
   renderSidebar();
   setupResizer();

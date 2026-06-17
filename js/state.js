@@ -73,6 +73,11 @@ function scheduleDiskSave() {
   _diskSaveTimer = setTimeout(() => saveAll(true), 800);
 }
 
+function cancelDiskSave() {
+  clearTimeout(_diskSaveTimer);
+  _diskSaveTimer = null;
+}
+
 // ─── Utilities ────────────────────────────────────────────────────────────────
 function uid() {
   return Math.random().toString(36).slice(2, 10);

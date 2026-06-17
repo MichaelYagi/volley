@@ -39,6 +39,11 @@ const PORT      = getCliPort() || process.env.PORT || 5874;
 const LOG_DIR   = process.env.SALVO_LOG_DIR || path.join(ROOT, 'logs');
 const LOG_FILE  = path.join(LOG_DIR, 'salvo.log');
 
+// Git sync
+const CONFIG_DIR      = path.join(ROOT, 'config');
+const GIT_CONFIG_FILE = path.join(CONFIG_DIR, 'git.json');
+const SYNC_DIR        = path.join(ROOT, 'salvo-sync');
+
 // ─── Logging ────────────────────────────────────────────────────────────────────
 // Writes to the CLI (console) and appends to logs/salvo.log (gitignored).
 function log(level, message) {
@@ -610,6 +615,100 @@ function saveData(payload) {
 let mockServer = null;
 let mockState  = { port: null, routes: [] };
 
+// ─── Git sync helpers ──────────────────────────────────────────────────────────
+
+function readGitCfg() {
+  try { return JSON.parse(fs.readFileSync(GIT_CONFIG_FILE, 'utf8')); } catch { return null; }
+}
+
+function writeGitCfg(cfg) {
+  fs.mkdirSync(CONFIG_DIR, { recursive: true });
+  fs.writeFileSync(GIT_CONFIG_FILE, JSON.stringify(cfg, null, 2));
+}
+
+function gitAuthUrl(remoteUrl, pat) {
+  if (!pat) return remoteUrl;
+  try {
+    const u = new URL(remoteUrl);
+    u.username = 'oauth2';
+    u.password = pat;
+    return u.toString();
+  } catch { return remoteUrl; }
+}
+
+function gitRun(args, cwd) {
+  return new Promise((resolve, reject) => {
+    const proc = spawn('git', args, {
+      cwd,
+      env: { ...process.env, GIT_TERMINAL_PROMPT: '0', GIT_ASKPASS: 'true' },
+    });
+    let out = '', err = '';
+    proc.stdout.on('data', d => { out += d; });
+    proc.stderr.on('data', d => { err += d; });
+    proc.on('close', code => {
+      if (code === 0) resolve(out.trim());
+      else reject(new Error((err || out).trim() || `git exited ${code}`));
+    });
+    proc.on('error', e => reject(new Error('git not found: ' + e.message)));
+  });
+}
+
+const SYNC_EXCLUDES = new Set(['_salvo/history.json', '_salvo/tabs.json', '_salvo/cookies.json']);
+
+function listJsonFiles(dir) {
+  const results = [];
+  function walk(cur, rel) {
+    let entries;
+    try { entries = fs.readdirSync(cur, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (e.name === '.git') continue;
+      const r = rel ? `${rel}/${e.name}` : e.name;
+      if (SYNC_EXCLUDES.has(r)) continue;
+      if (e.isDirectory()) walk(path.join(cur, e.name), r);
+      else if (e.name.endsWith('.json')) results.push(r);
+    }
+  }
+  walk(dir, '');
+  return results;
+}
+
+function readOrNull(p) {
+  try { return fs.readFileSync(p, 'utf8'); } catch { return null; }
+}
+
+function syncDataToRepo(dataDir, syncDir) {
+  function clean(dir) {
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      if (e.name === '.git') continue;
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) { clean(full); try { fs.rmdirSync(full); } catch {} }
+      else fs.unlinkSync(full);
+    }
+  }
+  clean(syncDir);
+  for (const rel of listJsonFiles(dataDir)) {
+    const dest = path.join(syncDir, rel);
+    fs.mkdirSync(path.dirname(dest), { recursive: true });
+    fs.copyFileSync(path.join(dataDir, rel), dest);
+  }
+}
+
+function getLocalChanges(dataDir, syncDir) {
+  const df = new Set(listJsonFiles(dataDir));
+  const sf = new Set(listJsonFiles(syncDir));
+  const added    = [...df].filter(f => !sf.has(f));
+  const deleted  = [...sf].filter(f => !df.has(f));
+  const modified = [...df].filter(f => sf.has(f) &&
+    readOrNull(path.join(dataDir, f)) !== readOrNull(path.join(syncDir, f)));
+  return { added, modified, deleted };
+}
+
+function isSyncInit() {
+  return fs.existsSync(path.join(SYNC_DIR, '.git'));
+}
+
 function mockPathSegments(p) {
   return String(p || '/').split('/').filter(Boolean);
 }
@@ -973,6 +1072,228 @@ const server = http.createServer((req, res) => {
       } catch (err) {
         log('ERROR', `proxy-stream ${method} ${url} failed: ${err.message}`);
         res.writeHead(200, { 'Content-Type': 'application/json', 'X-Salvo-Stream': 'error' });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  // ── Git sync endpoints ────────────────────────────────────────────────────
+
+  if (u.pathname === '/api/git/config' && req.method === 'GET') {
+    const cfg = readGitCfg();
+    const safe = cfg ? { remoteUrl: cfg.remoteUrl || '', branch: cfg.branch || 'main',
+      autoSync: !!cfg.autoSync, intervalMinutes: cfg.intervalMinutes || 5, patSet: !!cfg.pat } : null;
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, config: safe }));
+    return;
+  }
+
+  if (u.pathname === '/api/git/config' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const incoming = JSON.parse(body);
+        const existing = readGitCfg() || {};
+        const cfg = { ...existing, ...incoming };
+        if (!incoming.pat && existing.pat) cfg.pat = existing.pat;
+        writeGitCfg(cfg);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (u.pathname === '/api/git/status' && req.method === 'GET') {
+    (async () => {
+      try {
+        const cfg = readGitCfg();
+        if (!isSyncInit()) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, initialized: false, configured: !!cfg?.remoteUrl }));
+          return;
+        }
+        const { added, modified, deleted } = getLocalChanges(DATA_DIR, SYNC_DIR);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          ok: true, initialized: true, configured: true,
+          localChanges: added.length + modified.length + deleted.length,
+          lastSync: cfg?.lastSync || null,
+        }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    })();
+    return;
+  }
+
+  if (u.pathname === '/api/git/init' && req.method === 'POST') {
+    (async () => {
+      try {
+        const cfg = readGitCfg();
+        if (!cfg?.remoteUrl) throw new Error('No remote URL configured');
+        const authUrl = gitAuthUrl(cfg.remoteUrl, cfg.pat || '');
+        if (fs.existsSync(SYNC_DIR)) fs.rmSync(SYNC_DIR, { recursive: true, force: true });
+        await gitRun(['clone', authUrl, SYNC_DIR], ROOT);
+        // Remove PAT from stored remote URL
+        await gitRun(['remote', 'set-url', 'origin', cfg.remoteUrl], SYNC_DIR);
+        await gitRun(['config', 'user.email', 'salvo@local'], SYNC_DIR);
+        await gitRun(['config', 'user.name', 'Salvo Sync'], SYNC_DIR);
+        // Populate data/ from the cloned repo.
+        // Salvo export files ({ cols: [...] }) are expanded via saveData so they
+        // land in the correct directory structure. All other .json files are copied as-is.
+        const syncFiles = listJsonFiles(SYNC_DIR);
+        let filesCopied = 0;
+        let expandedExport = false;
+        for (const rel of syncFiles) {
+          const content = readOrNull(path.join(SYNC_DIR, rel));
+          if (!content) continue;
+          let parsed;
+          try { parsed = JSON.parse(content); } catch { parsed = null; }
+          if (parsed && Array.isArray(parsed.cols)) {
+            saveData(parsed);
+            filesCopied += (parsed.cols || []).length;
+            expandedExport = true;
+            log('INFO', `git init: expanded Salvo export ${rel} (${parsed.cols.length} collection(s))`);
+          } else {
+            const dest = path.join(DATA_DIR, rel);
+            fs.mkdirSync(path.dirname(dest), { recursive: true });
+            fs.writeFileSync(dest, content);
+            filesCopied++;
+          }
+        }
+        // If we expanded an export, sync the new data/ layout back into salvo-sync/
+        // so getLocalChanges returns 0 (no phantom local changes after re-clone).
+        if (expandedExport) syncDataToRepo(DATA_DIR, SYNC_DIR);
+        writeGitCfg({ ...cfg, lastSync: new Date().toISOString() });
+        log('INFO', `git init: cloned ${cfg.remoteUrl}, processed ${syncFiles.length} file(s)`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, filesCopied, files: syncFiles }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    })();
+    return;
+  }
+
+  if (u.pathname === '/api/git/push' && req.method === 'POST') {
+    (async () => {
+      try {
+        if (!isSyncInit()) throw new Error('Repository not connected');
+        const cfg = readGitCfg();
+        if (!cfg?.remoteUrl) throw new Error('No remote URL configured');
+        syncDataToRepo(DATA_DIR, SYNC_DIR);
+        const dirty = await gitRun(['status', '--porcelain'], SYNC_DIR);
+        if (!dirty) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, committed: false, message: 'Nothing to push' }));
+          return;
+        }
+        await gitRun(['add', '-A'], SYNC_DIR);
+        const count = dirty.split('\n').filter(Boolean).length;
+        await gitRun(['commit', '-m', `Sync ${new Date().toISOString()}`], SYNC_DIR);
+        const branch   = cfg.branch || 'main';
+        const authUrl  = gitAuthUrl(cfg.remoteUrl, cfg.pat || '');
+        await gitRun(['push', authUrl, `HEAD:${branch}`], SYNC_DIR);
+        writeGitCfg({ ...cfg, lastSync: new Date().toISOString() });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, committed: true, message: `Pushed ${count} change${count !== 1 ? 's' : ''}` }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    })();
+    return;
+  }
+
+  if (u.pathname === '/api/git/pull' && req.method === 'POST') {
+    (async () => {
+      try {
+        if (!isSyncInit()) throw new Error('Repository not connected');
+        const cfg     = readGitCfg();
+        const branch  = cfg?.branch || 'main';
+        const authUrl = gitAuthUrl(cfg?.remoteUrl || '', cfg?.pat || '');
+        await gitRun(['fetch', authUrl, branch], SYNC_DIR);
+        // What changed between our last sync point and remote?
+        const diffOut = await gitRun(['diff', '--name-status', 'HEAD', 'FETCH_HEAD'], SYNC_DIR).catch(() => '');
+        if (!diffOut) {
+          writeGitCfg({ ...cfg, lastSync: new Date().toISOString() });
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ ok: true, autoApplied: 0, conflicts: [], upToDate: true }));
+          return;
+        }
+        // Parse remote changes
+        const remoteChanges = diffOut.split('\n').filter(Boolean).map(line => {
+          const [action, ...rest] = line.split('\t');
+          return { path: rest[0], action: action.trim() };
+        });
+        // Detect local edits (data/ vs salvo-sync/ HEAD)
+        const localDiff = getLocalChanges(DATA_DIR, SYNC_DIR);
+        const localModified = new Set([...localDiff.added, ...localDiff.modified, ...localDiff.deleted]);
+        const autoApply = [], conflicts = [];
+        for (const change of remoteChanges) {
+          const remoteContent = change.action !== 'D'
+            ? await gitRun(['show', `FETCH_HEAD:${change.path}`], SYNC_DIR).catch(() => null)
+            : null;
+          const localContent = readOrNull(path.join(DATA_DIR, change.path));
+          if (localModified.has(change.path)) {
+            conflicts.push({ path: change.path, action: change.action, localContent, remoteContent });
+          } else {
+            autoApply.push({ path: change.path, action: change.action, remoteContent });
+          }
+        }
+        // Apply non-conflicted remote changes to data/
+        for (const item of autoApply) {
+          const dest = path.join(DATA_DIR, item.path);
+          if (item.action === 'D' || item.remoteContent === null) {
+            try { fs.unlinkSync(dest); } catch {}
+          } else {
+            fs.mkdirSync(path.dirname(dest), { recursive: true });
+            fs.writeFileSync(dest, item.remoteContent);
+          }
+        }
+        // Advance salvo-sync/ HEAD if no conflicts
+        if (conflicts.length === 0) {
+          await gitRun(['reset', '--hard', 'FETCH_HEAD'], SYNC_DIR);
+          writeGitCfg({ ...cfg, lastSync: new Date().toISOString() });
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, autoApplied: autoApply.length, conflicts }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    })();
+    return;
+  }
+
+  if (u.pathname === '/api/git/apply' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const { resolutions } = JSON.parse(body);
+        const cfg = readGitCfg();
+        for (const { path: p, choice, remoteContent } of resolutions) {
+          const dest = path.join(DATA_DIR, p);
+          if (choice === 'remote') {
+            if (!remoteContent) { try { fs.unlinkSync(dest); } catch {} }
+            else { fs.mkdirSync(path.dirname(dest), { recursive: true }); fs.writeFileSync(dest, remoteContent); }
+          }
+        }
+        await gitRun(['reset', '--hard', 'FETCH_HEAD'], SYNC_DIR);
+        writeGitCfg({ ...cfg, lastSync: new Date().toISOString() });
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (err) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ ok: false, error: err.message }));
       }
     });

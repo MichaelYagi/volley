@@ -49,12 +49,21 @@
       <button id="theme-picker-btn" onclick="toggleThemeMenu()" title="Change color theme" aria-label="Change color theme"></button>
       <div id="theme-menu" style="display:none"></div>
     </div>
+    <button id="git-topbar-btn" onclick="openGitModal()" title="Git sync — push/pull your collections repository" style="display:none">
+      Git<span id="git-changes-badge" class="tab-badge" style="display:none">●</span>
+    </button>
     <button onclick="exportAll()" title="Download all collections as a JSON file">Export</button>
-    <label style="display:flex;align-items:center;cursor:pointer"
-           title="Import a Salvo export or Postman collection (.json) — merges with existing collections, skipping duplicate request names">
-      Import
-      <input type="file" accept=".json" onchange="importAny(event)" style="display:none">
-    </label>
+    <div class="import-dropdown" id="import-dropdown">
+      <button onclick="toggleImportDropdown()" title="Import a Salvo export or Postman collection">Import ▾</button>
+      <div class="import-dropdown-menu" id="import-dropdown-menu" style="display:none">
+        <label class="import-dropdown-item">
+          From file
+          <input type="file" accept=".json" onchange="importAny(event);closeImportDropdown()" style="display:none">
+        </label>
+        <button class="import-dropdown-item" onclick="closeImportDropdown();openUrlImportModal()">From URL</button>
+      </div>
+    </div>
+    <button onclick="openSettingsModal()" title="Settings">⚙</button>
   </div>
 
   <!-- ── Workspace ──────────────────────────────────────────────────────── -->
@@ -353,6 +362,59 @@ SOFTWARE.</pre>
   </div>
 </div>
 
+<!-- ── Git Sync Modal ────────────────────────────────────────────────── -->
+<div id="git-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeGitModal()">
+  <div class="modal git-modal" onclick="event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 style="margin:0">Git Sync</h3>
+      <button onclick="closeGitModal()" style="color:var(--text-muted);font-size:18px;padding:0 4px">✕</button>
+    </div>
+    <div id="git-modal-body"></div>
+  </div>
+</div>
+
+<!-- ── Git Conflict Modal ─────────────────────────────────────────────── -->
+<div id="git-conflict-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeGitConflictModal()">
+  <div class="modal git-conflict-modal" onclick="event.stopPropagation()">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h3 style="margin:0">Resolve Conflicts</h3>
+      <button onclick="closeGitConflictModal()" style="color:var(--text-muted);font-size:18px;padding:0 4px">✕</button>
+    </div>
+    <div id="git-conflict-list" class="git-conflict-list"></div>
+    <div class="modal-footer" style="margin-top:16px">
+      <button onclick="closeGitConflictModal()">Cancel</button>
+      <button id="git-apply-btn" class="btn-primary" onclick="applyGitResolution()">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── URL Import Modal ───────────────────────────────────────────────── -->
+<div id="url-import-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeUrlImportModal()">
+  <div class="modal url-import-modal" onclick="event.stopPropagation()">
+    <h3 style="margin:0 0 12px">Import from URL</h3>
+    <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">Enter the URL of a Salvo export or Postman collection (.json).</p>
+    <input id="url-import-input" type="url" placeholder="https://example.com/collection.json"
+           style="width:100%;margin-bottom:8px"
+           onkeydown="if(event.key==='Enter')fetchImportFromUrl()">
+    <p id="url-import-error" style="display:none;font-size:12px;color:var(--danger);margin:0 0 8px"></p>
+    <div class="modal-footer" style="margin-top:12px">
+      <button onclick="closeUrlImportModal()">Cancel</button>
+      <button id="url-import-btn" class="btn-primary" onclick="fetchImportFromUrl()">Fetch & Preview</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Settings Modal ────────────────────────────────────────────────────── -->
+<div id="settings-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeSettingsModal()">
+  <div class="modal settings-modal" onclick="event.stopPropagation()">
+    <h3 style="margin:0 0 16px">Settings</h3>
+    <div id="settings-modal-body"></div>
+    <div class="modal-footer" style="margin-top:16px">
+      <button onclick="closeSettingsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── Context Menu (positioned by JS) ──────────────────────────────────── -->
 <div id="ctx-menu" class="ctx-menu" style="display:none"></div>
 
@@ -377,6 +439,8 @@ SOFTWARE.</pre>
 <script src="js/modals.js"></script>      <!-- environment modal                 -->
 <script src="js/runner.js"></script>      <!-- collection runner                 -->
 <script src="js/mock.js"></script>        <!-- mock server modal                 -->
+<script src="js/settings.js"></script>      <!-- settings modal & feature flags    -->
+<script src="js/git.js"></script>          <!-- git sync: push/pull/conflicts      -->
 <script src="js/app.js"></script>         <!-- init, save, resizer, history      -->
 
 </body>

@@ -148,7 +148,7 @@ function renderEnvDetail() {
 
   html += `
     <div style="display:flex;gap:8px;margin-top:16px">
-      <button class="btn-primary" onclick="envUse()">Use This Environment</button>
+      <button onclick="envUse()">Use This Environment</button>
       ${env.id !== 'default' ? `<button onclick="envDelete()" style="color:var(--danger)">Delete</button>` : ''}
     </div>`;
 

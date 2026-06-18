@@ -149,7 +149,6 @@
 
 /* ─── Logs Modal ─────────────────────────────────────────────────────────────── */
 .logs-modal        { width: 860px; max-width: 96vw; display: flex; flex-direction: column; gap: 0; padding: 20px; }
-.logs-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
 .logs-output       { flex: 1; height: 520px; max-height: 70vh; overflow-y: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-family: monospace; font-size: 11px; line-height: 1.6; color: var(--text-muted); }
 .logs-line         { white-space: pre-wrap; word-break: break-all; }
 .logs-error        { color: var(--danger); }

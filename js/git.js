@@ -54,7 +54,7 @@ function renderGitModal() {
         <input id="git-branch" value="${esc(cfg.branch || 'main')}" placeholder="main" style="width:100px">
       </div>
       <div class="git-row" style="margin-top:12px">
-        <button class="btn-primary" onclick="saveGitConfig()">Save</button>
+        <button onclick="saveGitConfig()">Save</button>
         <button onclick="initGitRepo()" id="git-init-btn"
                 ${!cfg.remoteUrl ? 'disabled title="Save a remote URL first"' : ''}>
           ${initialized ? 'Re-clone' : 'Connect'}
@@ -86,7 +86,7 @@ function renderGitModal() {
              </span>
            </div>
            <div class="git-row" style="margin-top:10px">
-             <button class="btn-primary" id="git-push-btn" onclick="gitPush()">Push</button>
+             <button id="git-push-btn" onclick="gitPush()">Push</button>
              <button id="git-pull-btn" onclick="gitPull()">Pull</button>
            </div>`
       }

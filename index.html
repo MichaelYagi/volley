@@ -242,7 +242,7 @@
     <div id="runner-summary" class="muted" style="font-size:12px;margin-bottom:8px"></div>
     <div id="runner-results" class="runner-results"></div>
     <div class="modal-footer">
-      <button id="runner-start-btn" class="btn-primary" onclick="startRunnerRun()">Start Run</button>
+      <button id="runner-start-btn" onclick="startRunnerRun()">Start Run</button>
       <button id="runner-stop-btn" onclick="stopRunner()" style="color:var(--danger)">Stop</button>
       <button class="btn-primary" onclick="closeRunnerModal()">Close</button>
     </div>
@@ -257,8 +257,8 @@
     <label>Description</label>
     <textarea id="col-info-desc" style="width:100%;min-height:140px;font-family:inherit;font-size:12px;padding:8px;resize:vertical"></textarea>
     <div class="modal-footer">
-      <button onclick="closeColInfoModal()">Cancel</button>
-      <button class="btn-primary" onclick="saveColInfoModal()">Save</button>
+      <button class="btn-primary" onclick="closeColInfoModal()">Cancel</button>
+      <button onclick="saveColInfoModal()">Save</button>
     </div>
   </div>
 </div>
@@ -274,10 +274,10 @@
     <input id="mock-port-input" type="number" value="5875" style="width:120px">
     <div id="mock-status" class="muted" style="font-size:12px;margin:8px 0"></div>
     <div id="mock-routes"></div>
-    <div class="modal-footer">
+    <div class="modal-footer" style="margin-top:16px">
       <button id="mock-stop-btn" onclick="stopMock()" style="color:var(--danger);display:none">Stop</button>
-      <button id="mock-start-btn" class="btn-primary" onclick="startMock()">Start</button>
-      <button onclick="closeMockModal()">Close</button>
+      <button id="mock-start-btn" onclick="startMock()">Start</button>
+      <button class="btn-primary" onclick="closeMockModal()">Close</button>
     </div>
   </div>
 </div>
@@ -340,8 +340,8 @@ SOFTWARE.</pre>
     <input id="dialog-input" type="text" style="display:none"
            onkeydown="if(event.key==='Enter')dialogConfirm(); else if(event.key==='Escape')dialogCancel()">
     <div class="modal-footer">
-      <button id="dialog-cancel-btn" onclick="dialogCancel()">Cancel</button>
-      <button id="dialog-ok-btn" class="btn-primary" onclick="dialogConfirm()">OK</button>
+      <button id="dialog-cancel-btn" class="btn-primary" onclick="dialogCancel()">Cancel</button>
+      <button id="dialog-ok-btn" onclick="dialogConfirm()">OK</button>
     </div>
   </div>
 </div>
@@ -358,8 +358,8 @@ SOFTWARE.</pre>
     </div>
     <div id="import-list"></div>
     <div class="modal-footer">
-      <button onclick="closeImportModal()">Cancel</button>
-      <button class="btn-primary" onclick="confirmImport()">Import</button>
+      <button class="btn-primary" onclick="closeImportModal()">Cancel</button>
+      <button onclick="confirmImport()">Import</button>
     </div>
   </div>
 </div>
@@ -384,8 +384,8 @@ SOFTWARE.</pre>
     </div>
     <div id="git-conflict-list" class="git-conflict-list"></div>
     <div class="modal-footer" style="margin-top:16px">
-      <button onclick="closeGitConflictModal()">Cancel</button>
-      <button id="git-apply-btn" class="btn-primary" onclick="applyGitResolution()">Apply</button>
+      <button class="btn-primary" onclick="closeGitConflictModal()">Cancel</button>
+      <button id="git-apply-btn" onclick="applyGitResolution()">Apply</button>
     </div>
   </div>
 </div>
@@ -400,8 +400,8 @@ SOFTWARE.</pre>
            onkeydown="if(event.key==='Enter')fetchImportFromUrl()">
     <p id="url-import-error" style="display:none;font-size:12px;color:var(--danger);margin:0 0 8px"></p>
     <div class="modal-footer" style="margin-top:12px">
-      <button onclick="closeUrlImportModal()">Cancel</button>
-      <button id="url-import-btn" class="btn-primary" onclick="fetchImportFromUrl()">Fetch & Preview</button>
+      <button class="btn-primary" onclick="closeUrlImportModal()">Cancel</button>
+      <button id="url-import-btn" onclick="fetchImportFromUrl()">Fetch & Preview</button>
     </div>
   </div>
 </div>
@@ -409,11 +409,11 @@ SOFTWARE.</pre>
 <!-- ── Logs Modal ──────────────────────────────────────────────────────────── -->
 <div id="logs-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeLogsModal()">
   <div class="modal logs-modal" onclick="event.stopPropagation()">
-    <div class="logs-modal-header">
-      <h3 style="margin:0">Server Logs</h3>
-      <button onclick="closeLogsModal()">Close</button>
-    </div>
+    <h3 style="margin:0 0 12px">Server Logs</h3>
     <div id="logs-output" class="logs-output"></div>
+    <div class="modal-footer" style="margin-top:12px">
+      <button class="btn-primary" onclick="closeLogsModal()">Close</button>
+    </div>
   </div>
 </div>
 
@@ -423,7 +423,7 @@ SOFTWARE.</pre>
     <h3 style="margin:0 0 16px">Settings</h3>
     <div id="settings-modal-body"></div>
     <div class="modal-footer" style="margin-top:16px">
-      <button onclick="closeSettingsModal()">Close</button>
+      <button class="btn-primary" onclick="closeSettingsModal()">Close</button>
     </div>
   </div>
 </div>

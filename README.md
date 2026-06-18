@@ -56,6 +56,9 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 - [Cookie Jar](#cookie-jar)
 - [Tabs](#tabs)
 - [Export / Import](#export--import)
+- [Git Sync (experimental)](#git-sync-experimental)
+- [Log Viewer](#log-viewer)
+- [Settings](#settings)
 - [Tests](#tests)
 - [No build step](#no-build-step)
 - [License](#license)
@@ -92,10 +95,13 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 - **Notes on params/headers** — annotate individual rows ("Dev key", "pagination cursor", etc.)
 - **Request history** — every sent request logged with method, status, and timing; click to replay
 - **Per-request tab memory** — remembers which tab (Params/Headers/Auth/Body/cURL) you last had open for each request
-- **CORS-free sending** — requests are proxied through the local server, so the browser never makes the cross-origin call directly
-- **Color themes** — pick Dark, Light, Nord, or Carnival from the topbar theme picker; your choice is remembered per device.
+- **CORS handling** — Salvo tries a direct `fetch()` first; if the browser blocks it (CORS), the request is automatically retried through the local Node server, where CORS doesn't apply. SSE and Digest Auth always go through the server.
+- **Server status indicator** — a dot in the topbar shows whether the local server is reachable; coordinates across browser tabs via `BroadcastChannel` so only one tab polls at a time.
+- **Color themes** — pick Dark, Light, Nord, Carnival, or Garbagefire from the topbar theme picker; your choice is remembered per device.
+- **Git sync** *(experimental, enable in Settings)* — push and pull your collections against a remote git repository. See [Git Sync](#git-sync-experimental).
+- **Log viewer** *(enable in Settings)* — a Logs button opens a live-streaming view of server output, replaying a configurable in-memory buffer of recent lines. See [Log Viewer](#log-viewer).
 - **Responsive layout** — on narrow/tablet/phone widths, the sidebar collapses behind a `☰` toggle and slides over the request panel.
-- **Export / Import** — export all collections to a single JSON file (or a single collection, as Salvo or Postman v2.1.0 JSON, via its right-click menu), share it with a team, and import it elsewhere. Imports accept a Salvo export, a Postman collection, or a Postman environment, and merge with existing collections/environments by name, skipping requests with duplicate names.
+- **Export / Import** — export all collections to a single JSON file (or a single collection, as Salvo or Postman v2.1.0 JSON, via its right-click menu), share it with a team, and import it elsewhere. The **Import ▾** dropdown accepts a local file or a URL (fetched server-side). Imports accept a Salvo export, a Postman collection, or a Postman environment, and merge with existing collections/environments by name, skipping requests with duplicate names.
 - **Auto-save** — every change is saved to disk automatically (debounced), with a save-status indicator in the topbar. `Ctrl+S`/`Cmd+S` still works for an explicit save.
 - **About** — click the Salvo logo/title in the topbar for an About modal with a short description and the MIT license text.
 
@@ -103,17 +109,19 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 
 ```
 salvo/
-├── server.js               — stdlib-only Node server: static files + /api/data, /api/save, /api/proxy, /api/ws-proxy, /api/mcp-stdio
-├── cli.js                   — headless Collection Runner (CI/CD), see [CLI Runner](#cli-runner)
-├── data/                    — gitignored; your collections, environments, history, and globals (plain JSON)
-├── index.html               — markup only, no inline JS or CSS
+├── server.js               — stdlib-only Node server: static files + API endpoints
+├── cli.js                  — headless Collection Runner (CI/CD), see [CLI Runner](#cli-runner)
+├── data/                   — gitignored; your collections, environments, history, and globals (plain JSON)
+├── config/                 — gitignored; server-side config (git.json, logs.json)
+├── salvo-sync/             — gitignored; local git clone managed by Git Sync
+├── index.html              — markup only, no inline JS or CSS
 ├── css/
 │   ├── base.css            — reset, layout shell, form controls, buttons, tabs, spinner
-│   ├── themes.css          — Dark/Light/Nord/Carnival theme variable sets
+│   ├── themes.css          — Dark/Light/Nord/Carnival/Garbagefire theme variable sets
 │   ├── sidebar.css         — sidebar, resizer, collection/folder/request rows, context menu
 │   ├── request.css         — URL bar, KV editor, auth editor, body editor, bulk edit
 │   ├── response.css        — response panel, status badge, JSON tree, SSE event log, WebSocket transcript, MCP composer, history panel
-│   └── modals.css          — modal backdrop, environment modal, runner modal, toast notifications
+│   └── modals.css          — modal backdrop, environment modal, runner modal, git modal, log viewer, settings, toast notifications
 └── js/
     ├── state.js            — global state, auto-save scheduling, shared utilities
     ├── theme.js            — color theme picker
@@ -122,14 +130,17 @@ salvo/
     ├── curl.js             — curl command generation
     ├── request.js          — request editor: tabs, KV/auth/body editors, bulk edit
     ├── response.js         — response panel rendering, DOM-based JSON tree, SSE/WebSocket/MCP transcripts
-    ├── send.js             — request execution (via /api/proxy), response parsing, SSE parsing, OAuth2 flows
+    ├── send.js             — request execution (direct fetch → proxy fallback), response parsing, SSE, OAuth2
     ├── websocket.js        — WebSocket client (ws://, wss://), relayed through the local server
     ├── mcp.js              — MCP client (Streamable HTTP and stdio transports, via req.protocol)
-    ├── collections.js      — collection/folder/request CRUD, Postman & Salvo import/export
+    ├── collections.js      — collection/folder/request CRUD, Postman & Salvo import/export, URL import
     ├── modals.js           — environment & global variables modal
     ├── runner.js           — Collection Runner (run a collection/folder, CSV/JSON data files, results modal)
     ├── mock.js             — Mock Server modal (build routes from requests with mocking enabled, start/stop)
-    └── app.js              — init, sidebar resizer, history panel, save/load
+    ├── settings.js         — Settings modal, feature flags (stored in localStorage)
+    ├── logs.js             — Log viewer modal, SSE stream from /api/logs/stream
+    ├── git.js              — Git Sync modal: push/pull/conflict resolution/auto-sync
+    └── app.js              — init, sidebar resizer, history panel, save/load, server status polling
 ```
 
 All JS files share the global scope and load in order. `state.js` must be first — everything else depends on it. `app.js` is last and calls `init()` to boot.
@@ -412,7 +423,12 @@ The **Export** button (topbar) downloads a `salvo-export.json` containing all co
 
 A single collection can also be exported on its own via its right-click menu, as either a Salvo JSON file (**Export JSON**) or a Postman v2.1.0 collection (**Export as Postman**) — handy for sharing one collection with someone still on Postman.
 
-The **Import** button accepts any of:
+The **Import ▾** dropdown offers two ways to get data in:
+
+- **From file** — pick a local `.json` file
+- **From URL** — enter a URL; Salvo's server fetches it (so CORS and auth headers on the remote server are not an obstacle) and feeds the result into the same import pipeline
+
+Either route accepts:
 - A Salvo export (`{ "cols": [...], "envs": [...] }`) — opens an **import preview modal** before anything is applied (see below)
 - A Postman v2.x collection — added as a new collection; any collection-level Postman variables are imported as an environment named after the collection
 - A Postman environment export — merged into a matching (or newly created) environment by name; new vars are added and changed vars are updated
@@ -430,6 +446,70 @@ Every item is checked by default. Uncheck any you want to leave as-is, then clic
 The **Overwrite all** checkbox at the top checks every item at once — useful when you want to fully sync from the exported file without reviewing individual requests.
 
 Environment variables in the export are always synced automatically (new vars added, changed vars updated, identical vars skipped) regardless of which requests you check.
+
+## Git Sync (experimental)
+
+Git Sync lets you push and pull your collections against a remote git repository you own — a private GitHub repo, a self-hosted Gitea instance, anything with an HTTPS git remote. Your `data/` folder is never itself a git repo; instead Salvo maintains a separate local clone (`salvo-sync/`) as a bridge.
+
+Enable it first in **⚙ Settings → Experimental → Git sync**, then click the **Git** button that appears in the topbar.
+
+### Setup
+
+1. **Remote URL** — the HTTPS URL of your collections repo (e.g. `https://github.com/you/my-collections`).
+2. **Personal Access Token** — required for private repos and for push. For GitHub fine-grained PATs: grant **Contents (read & write)** and **Metadata (read)**. Leave blank for a public read-only repo.
+3. **Branch** — defaults to `main`.
+4. Click **Save**, then **Connect** to clone the remote into `salvo-sync/` and populate `data/` from it.
+
+### Push / Pull
+
+- **Push** — copies `data/` into `salvo-sync/`, commits, and pushes to the remote. Run this after making changes you want to share.
+- **Pull** — fetches the remote and compares it against `salvo-sync/`'s last-known state. Changes that don't conflict with local edits are applied automatically; conflicting files go to a **conflict resolution modal** where you choose to keep local or take remote for each file, then click **Apply**.
+
+The files `_salvo/history.json`, `_salvo/tabs.json`, and `_salvo/cookies.json` are excluded from sync — they're ephemeral local state that doesn't belong in a shared repo.
+
+### Re-clone
+
+If your local `data/` gets into a bad state, **Re-clone** (the same Connect button when already connected) wipes `data/` and repopulates it from the remote. Push any unsaved work first.
+
+If the remote repo contains a single Salvo export file (`{ "cols": [...] }`), Re-clone detects this and expands it into the normal directory structure automatically — so pointing Salvo at an existing export repo works out of the box.
+
+### Auto-sync
+
+Enable **Auto-sync** in the Git modal and set an interval (default 5 minutes). Salvo will push then pull on that schedule. If the pull reveals conflicts with remote changes, a notification appears prompting you to open the Git modal to resolve them. Cross-tab coordination via `localStorage` ensures only one open browser tab syncs per interval.
+
+## Log Viewer
+
+Enable **⚙ Settings → General → Show logs** to add a **Logs** button to the topbar. Click it to open a live-streaming view of the server's log output.
+
+- **History** — the server keeps a configurable in-memory ring buffer (default 500 lines, adjustable in Settings) that is replayed instantly when the modal opens. No disk I/O; the buffer is a plain in-memory array capped at the configured size.
+- **Live stream** — new log lines arrive via Server-Sent Events (`/api/logs/stream`) and are appended as they happen.
+- **Auto-scroll** — the view stays pinned to the bottom as lines arrive. Scroll up to read earlier output; auto-scroll resumes automatically when you scroll back to the bottom.
+- **Close** disconnects the SSE stream. Re-opening reconnects and replays the current buffer.
+
+Errors are highlighted in red, warnings in amber.
+
+### Buffer size
+
+The **Log buffer size** setting (under Show logs in Settings) controls how many lines are kept in memory. Changes apply immediately — if you lower the size, the oldest lines are trimmed right away. The value is persisted in `config/logs.json`.
+
+## Settings
+
+Click **⚙** in the topbar to open the Settings modal.
+
+### General
+
+| Setting | Description |
+|---------|-------------|
+| **Show logs** | Adds a **Logs** button to the topbar. See [Log Viewer](#log-viewer). |
+| **Buffer size** | Number of log lines kept in memory (10–10000, default 500). Only visible when Show logs is enabled. |
+
+### Experimental
+
+| Setting | Description |
+|---------|-------------|
+| **Git sync** | Adds a **Git** button to the topbar. See [Git Sync](#git-sync-experimental). |
+
+Feature flags are stored in `localStorage` — they are per-device and not synced.
 
 ## Tests
 

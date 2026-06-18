@@ -101,6 +101,43 @@
   --json-bool:        #ff6ec7;
 }
 
+/* "Garbagefire" — an affront to god and designers everywhere */
+[data-theme="garbagefire"] {
+  --bg:               #ffff00;
+  --bg-elevated:      #aaff00;
+  --bg-elevated-2:    #00ff00;
+  --bg-input:         #ffffaa;
+  --border:           #ff00ff;
+  --border-light:     #ff69b4;
+  --text:             #cc0066;
+  --text-bright:      #cc0000;
+  --text-muted:       #aa6600;
+  --text-faint:       #cc9900;
+  --placeholder:      #ff6600;
+  --accent:           #0000ff;
+  --accent-alpha:     #0000ff33;
+  --accent-contrast:  #ffff00;
+  --selected:         #ff0000;
+  --selected-alpha:   #ff000044;
+  --selected-bg:      #ffdddd;
+  --success:          #006600;
+  --success-bg:       #ccffcc;
+  --danger:           #ff0000;
+  --danger-bg:        #ffcccc;
+  --danger-border:    #ff0000;
+  --warning:          #ff6600;
+  --info-bg:          #ccffff;
+  --json-key:         #0000ff;
+  --json-str:         #cc0000;
+  --json-num:         #ff00ff;
+  --json-bool:        #006600;
+}
+
+[data-theme="garbagefire"],
+[data-theme="garbagefire"] * {
+  font-family: "Comic Sans MS", "Comic Sans", cursive !important;
+}
+
 /* "Nord" — a cool blue-grey dark theme with cyan/teal accents */
 [data-theme="nord"] {
   --bg:               #2e3440;

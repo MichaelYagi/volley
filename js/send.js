@@ -42,79 +42,118 @@ async function sendRequest() {
     }
 
     const { url: builtUrl, headers, bodyKind, bodyPayload, digestAuth } = await buildRequestArgs(tab.req);
+    const skipCookieJar = isAutoHeaderDisabled(tab.req, 'Cookie');
 
-    const proxyRes = await fetch('/api/proxy-stream', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({
-        url: builtUrl, method: tab.req.method, headers, bodyKind, body: bodyPayload, digestAuth,
-        skipCookieJar: isAutoHeaderDisabled(tab.req, 'Cookie'),
-      }),
-      signal:  tab.abortCtrl.signal,
-    });
-
-    if (proxyRes.headers.get('x-salvo-stream') === 'error') {
-      const data = await proxyRes.json();
-      throw new Error(data.error);
+    // Try direct fetch first — avoids the proxy hop for APIs that allow it.
+    // Skip if digest auth is needed (requires server-side challenge handling) or
+    // cookie jar injection is wanted (cookies are stored server-side).
+    let directRes = null;
+    if (!digestAuth) {
+      try {
+        directRes = await fetch(builtUrl, {
+          method:  tab.req.method,
+          headers,
+          body:    buildDirectBody(bodyKind, bodyPayload),
+          signal:  tab.abortCtrl.signal,
+        });
+        // SSE needs the proxy's streaming path — fall through
+        if ((directRes.headers.get('content-type') || '').includes('text/event-stream')) {
+          directRes = null;
+        }
+      } catch (e) {
+        if (e.name === 'AbortError') throw e;
+        directRes = null; // CORS or network error — fall through to proxy
+      }
     }
 
-    const status     = Number(proxyRes.headers.get('x-salvo-upstream-status')) || 0;
-    const statusText = decodeURIComponent(proxyRes.headers.get('x-salvo-upstream-statustext') || '');
-    let respHeaders  = {};
-    try { respHeaders = JSON.parse(atob(proxyRes.headers.get('x-salvo-upstream-headers') || '')) || {}; } catch {}
+    let status, statusText, respHeaders, isSSE, proxyRes;
 
-    const isSSE = (respHeaders['content-type'] || '').includes('text/event-stream');
+    if (directRes) {
+      status      = directRes.status;
+      statusText  = directRes.statusText;
+      respHeaders = {};
+      directRes.headers.forEach((v, k) => { respHeaders[k] = v; });
+      isSSE       = false;
 
-    if (isSSE) {
-      // Stream Server-Sent Events live into tab.resp.events as they arrive.
-      tab.resp = { sse: true, status, statusText, headers: respHeaders, events: [], connected: true, elapsed: 0 };
-      if (activeTab() === tab) renderRespPanel();
-
-      const reader  = proxyRes.body.getReader();
-      const decoder = new TextDecoder('utf-8');
-      let buffer = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        buffer += decoder.decode(value, { stream: true });
-        const { events, remainder } = extractSseEvents(buffer);
-        buffer = remainder;
-        if (events.length) {
-          tab.resp.events.push(...events);
-          if (activeTab() === tab && tab.respTab === 'body') renderRespPanel();
-        }
-      }
-
-      tab.resp.connected = false;
-      tab.resp.elapsed   = Date.now() - start;
-
-    } else {
-      // Buffer the full body, then parse it like a normal response.
-      const reader = proxyRes.body.getReader();
-      const chunks = [];
-      let total = 0;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(value);
-        total += value.length;
-      }
-      const bytes = new Uint8Array(total);
-      let offset = 0;
-      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
-
+      const buf     = await directRes.arrayBuffer();
       const elapsed = Date.now() - start;
-      tab.resp = await parseResponse({ status, statusText, headers: respHeaders, bodyBase64: bytesToBase64(bytes) }, elapsed);
+      tab.resp = await parseResponse({ status, statusText, headers: respHeaders, bodyBase64: bytesToBase64(new Uint8Array(buf)) }, elapsed);
 
       if (tab.req.testScript?.trim()) {
         const { pm, testResults } = buildPmApi(tab.req, tab.resp);
-        try {
-          runScript(tab.req.testScript, pm);
-        } catch (e) {
-          testResults.push({ name: 'Test script error', passed: false, error: e.message });
-        }
+        try { runScript(tab.req.testScript, pm); }
+        catch (e) { testResults.push({ name: 'Test script error', passed: false, error: e.message }); }
         tab.resp.testResults = testResults;
+      }
+    } else {
+      proxyRes = await fetch('/api/proxy-stream', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({
+          url: builtUrl, method: tab.req.method, headers, bodyKind, body: bodyPayload, digestAuth,
+          skipCookieJar,
+        }),
+        signal:  tab.abortCtrl.signal,
+      });
+
+      if (proxyRes.headers.get('x-salvo-stream') === 'error') {
+        const data = await proxyRes.json();
+        throw new Error(data.error);
+      }
+
+      status      = Number(proxyRes.headers.get('x-salvo-upstream-status')) || 0;
+      statusText  = decodeURIComponent(proxyRes.headers.get('x-salvo-upstream-statustext') || '');
+      respHeaders = {};
+      try { respHeaders = JSON.parse(atob(proxyRes.headers.get('x-salvo-upstream-headers') || '')) || {}; } catch {}
+      isSSE       = (respHeaders['content-type'] || '').includes('text/event-stream');
+
+      if (isSSE) {
+        // Stream Server-Sent Events live into tab.resp.events as they arrive.
+        tab.resp = { sse: true, status, statusText, headers: respHeaders, events: [], connected: true, elapsed: 0 };
+        if (activeTab() === tab) renderRespPanel();
+
+        const reader  = proxyRes.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const { events, remainder } = extractSseEvents(buffer);
+          buffer = remainder;
+          if (events.length) {
+            tab.resp.events.push(...events);
+            if (activeTab() === tab && tab.respTab === 'body') renderRespPanel();
+          }
+        }
+
+        tab.resp.connected = false;
+        tab.resp.elapsed   = Date.now() - start;
+
+      } else {
+        const reader = proxyRes.body.getReader();
+        const chunks = [];
+        let total = 0;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          total += value.length;
+        }
+        const bytes = new Uint8Array(total);
+        let offset = 0;
+        for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+
+        const elapsed = Date.now() - start;
+        tab.resp = await parseResponse({ status, statusText, headers: respHeaders, bodyBase64: bytesToBase64(bytes) }, elapsed);
+
+        if (tab.req.testScript?.trim()) {
+          const { pm, testResults } = buildPmApi(tab.req, tab.resp);
+          try { runScript(tab.req.testScript, pm); }
+          catch (e) { testResults.push({ name: 'Test script error', passed: false, error: e.message }); }
+          tab.resp.testResults = testResults;
+        }
       }
     }
 
@@ -154,6 +193,36 @@ async function sendRequest() {
 
 function cancelReq() {
   activeTab()?.abortCtrl?.abort();
+}
+
+// ─── Convert bodyKind/bodyPayload into a native fetch body ───────────────────
+
+function buildDirectBody(bodyKind, bodyPayload) {
+  if (!bodyPayload || bodyKind === 'none') return undefined;
+  if (bodyKind === 'raw') return bodyPayload;
+  if (bodyKind === 'graphql') return JSON.stringify(bodyPayload);
+  if (bodyKind === 'urlencoded') {
+    return bodyPayload.map(f => `${encodeURIComponent(f.key)}=${encodeURIComponent(f.value)}`).join('&');
+  }
+  if (bodyKind === 'formdata') {
+    const fd = new FormData();
+    for (const f of bodyPayload) {
+      if (f.type === 'file' && f.fileData) {
+        const b64   = f.fileData.includes(',') ? f.fileData.split(',')[1] : f.fileData;
+        const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+        fd.append(f.key, new Blob([bytes], { type: f.fileMimeType }), f.fileName);
+      } else {
+        fd.append(f.key, f.value ?? '');
+      }
+    }
+    return fd;
+  }
+  if (bodyKind === 'binary' && bodyPayload.fileData) {
+    const b64   = bodyPayload.fileData.includes(',') ? bodyPayload.fileData.split(',')[1] : bodyPayload.fileData;
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    return new Blob([bytes], { type: bodyPayload.fileMimeType });
+  }
+  return undefined;
 }
 
 // ─── Build fetch arguments from the active request ────────────────────────────

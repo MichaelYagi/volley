@@ -147,6 +147,14 @@
 .import-modal     { width: 92vw; max-width: 92vw; min-width: 0; display: flex; flex-direction: column; max-height: 90vh; }
 .url-import-modal { width: 480px; max-width: 92vw; }
 
+/* ─── Logs Modal ─────────────────────────────────────────────────────────────── */
+.logs-modal        { width: 860px; max-width: 96vw; display: flex; flex-direction: column; gap: 0; padding: 20px; }
+.logs-modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.logs-output       { flex: 1; height: 520px; max-height: 70vh; overflow-y: auto; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-family: monospace; font-size: 11px; line-height: 1.6; color: var(--text-muted); }
+.logs-line         { white-space: pre-wrap; word-break: break-all; }
+.logs-error        { color: var(--danger); }
+.logs-warn         { color: var(--warning); }
+
 /* ─── Settings Modal ─────────────────────────────────────────────────────────── */
 .settings-modal       { width: 400px; max-width: 92vw; }
 .settings-section     { margin-bottom: 16px; }
@@ -156,6 +164,10 @@
 .settings-row-content strong { font-size: 13px; }
 .settings-desc        { font-size: 11px; color: var(--text-muted); }
 .settings-checkbox    { width: auto !important; flex-shrink: 0; cursor: pointer; margin: 0; }
+.settings-sub-row                  { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0 6px 34px; }
+.settings-sub-row .settings-row-content { flex: 1; }
+.settings-sub-disabled             { opacity: 0.4; pointer-events: none; }
+.settings-number                   { width: 60px !important; flex-shrink: 0; text-align: center; margin-top: 2px; }
 .import-modal-top { margin-bottom: 12px; }
 .import-modal .import-overwrite-label { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text); cursor: pointer; margin-bottom: 0; }
 .import-modal .import-overwrite-label input[type=checkbox] { width: auto; margin: 0; flex-shrink: 0; }

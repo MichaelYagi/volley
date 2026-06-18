@@ -42,10 +42,24 @@ const LOG_FILE  = path.join(LOG_DIR, 'salvo.log');
 // Git sync
 const CONFIG_DIR      = path.join(ROOT, 'config');
 const GIT_CONFIG_FILE = path.join(CONFIG_DIR, 'git.json');
+const LOG_CONFIG_FILE = path.join(CONFIG_DIR, 'logs.json');
 const SYNC_DIR        = path.join(ROOT, 'salvo-sync');
 
 // ─── Logging ────────────────────────────────────────────────────────────────────
-// Writes to the CLI (console) and appends to logs/salvo.log (gitignored).
+// Writes to the CLI (console), appends to logs/salvo.log (gitignored),
+// keeps an in-memory ring buffer, and broadcasts to any open SSE log clients.
+
+let _logBufferSize = 500;
+const _logBuffer   = [];
+const _logClients  = new Set();
+
+(function _loadLogConfig() {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(LOG_CONFIG_FILE, 'utf8'));
+    if (cfg.bufferSize) _logBufferSize = Math.max(10, Math.min(10000, cfg.bufferSize));
+  } catch {}
+})();
+
 function log(level, message) {
   const line = `[${new Date().toISOString()}] [${level}] ${message}`;
   if (level === 'ERROR') console.error(line);
@@ -54,6 +68,14 @@ function log(level, message) {
     fs.mkdirSync(LOG_DIR, { recursive: true });
     fs.appendFileSync(LOG_FILE, line + '\n');
   } catch {}
+
+  _logBuffer.push(line);
+  if (_logBuffer.length > _logBufferSize) _logBuffer.shift();
+
+  const payload = `data: ${JSON.stringify(line)}\n\n`;
+  for (const client of _logClients) {
+    try { client.write(payload); } catch { _logClients.delete(client); }
+  }
 }
 
 const MIME = {
@@ -789,7 +811,7 @@ const server = http.createServer((req, res) => {
   const u = new URL(req.url, `http://${req.headers.host}`);
 
   res.on('finish', () => {
-    if (u.pathname !== '/api/ping')
+    if (u.pathname !== '/api/ping' && u.pathname !== '/api/logs/stream')
       log('INFO', `${req.method} ${u.pathname} ${res.statusCode} ${Date.now() - start}ms`);
   });
 
@@ -1079,6 +1101,45 @@ const server = http.createServer((req, res) => {
   }
 
   // ── Git sync endpoints ────────────────────────────────────────────────────
+
+  // ── Log streaming ────────────────────────────────────────────────────────────
+  if (u.pathname === '/api/logs/stream') {
+    res.writeHead(200, {
+      'Content-Type':  'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection':    'keep-alive',
+    });
+    for (const line of _logBuffer) res.write(`data: ${JSON.stringify(line)}\n\n`);
+    _logClients.add(res);
+    req.on('close', () => _logClients.delete(res));
+    return;
+  }
+
+  if (u.pathname === '/api/logs/config' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ bufferSize: _logBufferSize }));
+    return;
+  }
+
+  if (u.pathname === '/api/logs/config' && req.method === 'POST') {
+    let body = '';
+    req.on('data', d => { body += d; });
+    req.on('end', () => {
+      try {
+        const { bufferSize } = JSON.parse(body);
+        _logBufferSize = Math.max(10, Math.min(10000, Math.round(bufferSize)));
+        while (_logBuffer.length > _logBufferSize) _logBuffer.shift();
+        fs.mkdirSync(CONFIG_DIR, { recursive: true });
+        fs.writeFileSync(LOG_CONFIG_FILE, JSON.stringify({ bufferSize: _logBufferSize }, null, 2));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, bufferSize: _logBufferSize }));
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: e.message }));
+      }
+    });
+    return;
+  }
 
   if (u.pathname === '/api/git/config' && req.method === 'GET') {
     const cfg = readGitCfg();

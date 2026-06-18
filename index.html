@@ -49,6 +49,7 @@
       <button id="theme-picker-btn" onclick="toggleThemeMenu()" title="Change color theme" aria-label="Change color theme"></button>
       <div id="theme-menu" style="display:none"></div>
     </div>
+    <button id="logs-topbar-btn" onclick="openLogsModal()" title="View server logs" style="display:none">Logs</button>
     <button id="git-topbar-btn" onclick="openGitModal()" title="Git sync — push/pull your collections repository" style="display:none">
       Git<span id="git-changes-badge" class="tab-badge" style="display:none">●</span>
     </button>
@@ -404,6 +405,17 @@ SOFTWARE.</pre>
   </div>
 </div>
 
+<!-- ── Logs Modal ──────────────────────────────────────────────────────────── -->
+<div id="logs-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeLogsModal()">
+  <div class="modal logs-modal" onclick="event.stopPropagation()">
+    <div class="logs-modal-header">
+      <h3 style="margin:0">Server Logs</h3>
+      <button onclick="closeLogsModal()">Close</button>
+    </div>
+    <div id="logs-output" class="logs-output"></div>
+  </div>
+</div>
+
 <!-- ── Settings Modal ────────────────────────────────────────────────────── -->
 <div id="settings-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeSettingsModal()">
   <div class="modal settings-modal" onclick="event.stopPropagation()">
@@ -440,6 +452,7 @@ SOFTWARE.</pre>
 <script src="js/runner.js"></script>      <!-- collection runner                 -->
 <script src="js/mock.js"></script>        <!-- mock server modal                 -->
 <script src="js/settings.js"></script>      <!-- settings modal & feature flags    -->
+<script src="js/logs.js"></script>         <!-- server log viewer                 -->
 <script src="js/git.js"></script>          <!-- git sync: push/pull/conflicts      -->
 <script src="js/app.js"></script>         <!-- init, save, resizer, history      -->
 

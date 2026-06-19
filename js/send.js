@@ -554,10 +554,25 @@ function bytesToBase64(bytes) {
 // if `text` isn't valid JSON.
 function parseJsonOffMainThread(text) {
   return new Promise(resolve => {
-    const worker = new Worker('js/json-worker.js');
+    let worker;
+    try { worker = new Worker('js/json-worker.js'); } catch {
+      // file:// origin or other restriction — parse inline
+      try {
+        const value = JSON.parse(text);
+        resolve({ value, pretty: JSON.stringify(value, null, 2) });
+      } catch { resolve(null); }
+      return;
+    }
     worker.onmessage = e => {
       worker.terminate();
       resolve(e.data.ok ? { value: e.data.value, pretty: e.data.pretty } : null);
+    };
+    worker.onerror = () => {
+      worker.terminate();
+      try {
+        const value = JSON.parse(text);
+        resolve({ value, pretty: JSON.stringify(value, null, 2) });
+      } catch { resolve(null); }
     };
     worker.postMessage(text);
   });

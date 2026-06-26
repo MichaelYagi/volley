@@ -125,20 +125,27 @@ function buildMockCurl() {
 // ─── Tab panel HTML ───────────────────────────────────────────────────────────
 
 function curlPanelHTML() {
-  const r = activeTab()?.req;
+  const tab = activeTab();
+  const r   = tab?.req;
   if (r?.protocol === 'mcp-stdio') {
     return `<p class="muted">MCP · stdio requests run as a local process over stdin/stdout — there's no curl equivalent.</p>`;
   }
+
+  if (tab?._curlEditMode) return _curlEditPanelHTML(tab);
+
   const cmd = buildCurl();
-  if (!cmd) return `<p class="muted">Enter a URL to see the curl command.</p>`;
+  const copyDisabled = !cmd;
 
   let html = `
-    <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
-      <button class="btn-primary" onclick="copyCurl()" style="font-size:11px;padding:4px 12px">Copy</button>
+    <div style="display:flex;justify-content:flex-end;gap:6px;margin-bottom:8px">
+      <button onclick="enterCurlEditMode()" style="font-size:11px;padding:4px 12px">Edit</button>
+      <button class="btn-primary" onclick="copyCurl()"
+              style="font-size:11px;padding:4px 12px${copyDisabled ? ';opacity:0.4;cursor:not-allowed' : ''}"
+              ${copyDisabled ? 'disabled' : ''}>Copy</button>
     </div>
     <pre id="curl-output" style="margin:0;background:var(--bg);border:1px solid var(--bg-input);border-radius:4px;
          padding:12px 14px;font-family:monospace;font-size:12px;line-height:1.7;
-         color:var(--text);white-space:pre-wrap;word-break:break-all">${esc(cmd)}</pre>`;
+         color:var(--text);white-space:pre-wrap;word-break:break-all;min-height:48px">${esc(cmd)}</pre>`;
 
   if (r?.mock?.enabled && _mockStatus?.running) {
     html += `
@@ -153,6 +160,378 @@ function curlPanelHTML() {
   }
 
   return html;
+}
+
+function _curlEditPanelHTML(tab) {
+  const errors   = tab._curlErrors   || [];
+  const warnings = tab._curlWarnings || [];
+  const disabled = errors.length > 0;
+  const draft    = tab._curlDraft ?? '';
+
+  let msgHtml = '';
+  errors.forEach(e   => { msgHtml += `<div class="curl-msg-error">✕ ${esc(e)}</div>`; });
+  warnings.forEach(w => { msgHtml += `<div class="curl-msg-warn">⚠ ${esc(w)}</div>`; });
+
+  return `
+    <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-bottom:8px">
+      <button id="curl-save-btn" onclick="saveCurlEdit()"
+              ${disabled ? 'disabled' : ''}
+              class="curl-save-btn${disabled ? ' curl-save-disabled' : ''}"
+              style="font-size:11px;padding:4px 12px">Save</button>
+      <button class="btn-primary" onclick="cancelCurlEdit()" style="font-size:11px;padding:4px 12px">Cancel</button>
+    </div>
+    <p class="muted curl-edit-notice">
+      Variable references are resolved here — saving replaces them with literal values.
+      Changes to other tabs won't apply until saved or cancelled.
+    </p>
+    <textarea id="curl-edit-area" spellcheck="false"
+              oninput="_onCurlEditInput(this.value)"
+              class="curl-edit-area">${esc(draft)}</textarea>
+    <div id="curl-edit-messages" class="curl-edit-messages"${msgHtml ? '' : ' style="display:none"'}>${msgHtml}</div>`;
+}
+
+// ─── Edit mode ────────────────────────────────────────────────────────────────
+
+function enterCurlEditMode() {
+  const tab = activeTab();
+  if (!tab) return;
+  tab._curlEditMode  = true;
+  tab._curlDraft     = buildCurl();
+  tab._curlErrors    = [];
+  tab._curlWarnings  = [];
+  renderReqPanel();
+  setTimeout(() => document.getElementById('curl-edit-area')?.focus(), 0);
+}
+
+function cancelCurlEdit() {
+  const tab = activeTab();
+  if (!tab) return;
+  delete tab._curlEditMode;
+  delete tab._curlDraft;
+  delete tab._curlErrors;
+  delete tab._curlWarnings;
+  renderReqPanel();
+}
+
+function saveCurlEdit() {
+  const tab = activeTab();
+  if (!tab) return;
+  const text   = document.getElementById('curl-edit-area')?.value ?? tab._curlDraft ?? '';
+  const result = parseCurlCommand(text);
+  tab._curlErrors   = result.errors;
+  tab._curlWarnings = result.warnings;
+
+  if (!result.ok) {
+    _updateCurlMessages(result);
+    const btn = document.getElementById('curl-save-btn');
+    if (btn) { btn.disabled = true; btn.classList.add('curl-save-disabled'); }
+    return;
+  }
+
+  applyParsedCurl(result, tab);
+  delete tab._curlEditMode;
+  delete tab._curlDraft;
+  delete tab._curlErrors;
+  delete tab._curlWarnings;
+  syncReqEditor();
+  renderReqPanel();
+  notify('curl applied', 'success');
+}
+
+function _onCurlEditInput(value) {
+  const tab = activeTab();
+  if (!tab) return;
+  tab._curlDraft = value;
+  // Re-validate live only after a failed save attempt, so the Save button
+  // re-enables as the user fixes errors.
+  if (!tab._curlErrors?.length) return;
+  const result = parseCurlCommand(value);
+  tab._curlErrors   = result.errors;
+  tab._curlWarnings = result.warnings;
+  _updateCurlMessages(result);
+  const btn = document.getElementById('curl-save-btn');
+  if (btn) {
+    btn.disabled = result.errors.length > 0;
+    btn.classList.toggle('curl-save-disabled', result.errors.length > 0);
+  }
+}
+
+function _updateCurlMessages(result) {
+  const el = document.getElementById('curl-edit-messages');
+  if (!el) return;
+  let html = '';
+  result.errors.forEach(e   => { html += `<div class="curl-msg-error">✕ ${esc(e)}</div>`; });
+  result.warnings.forEach(w => { html += `<div class="curl-msg-warn">⚠ ${esc(w)}</div>`; });
+  el.innerHTML    = html;
+  el.style.display = html ? '' : 'none';
+}
+
+// ─── curl parser ──────────────────────────────────────────────────────────────
+
+function tokenizeCurl(text) {
+  const flat = text.replace(/\\\r?\n\s*/g, ' ').trim();
+  const tokens = [];
+  let i = 0;
+  while (i < flat.length) {
+    while (i < flat.length && /\s/.test(flat[i])) i++;
+    if (i >= flat.length) break;
+
+    if (flat[i] === '$' && flat[i + 1] === "'") {
+      // $'...' ANSI-C quoting (Chrome DevTools uses this for special chars)
+      i += 2;
+      let tok = '';
+      while (i < flat.length && flat[i] !== "'") {
+        if (flat[i] === '\\' && i + 1 < flat.length) {
+          i++;
+          const esc_map = { n: '\n', t: '\t', r: '\r', "'": "'", '\\': '\\' };
+          tok += esc_map[flat[i]] ?? ('\\' + flat[i]);
+          i++;
+        } else {
+          tok += flat[i++];
+        }
+      }
+      i++;
+      tokens.push(tok);
+    } else if (flat[i] === "'") {
+      i++;
+      let tok = '';
+      while (i < flat.length) {
+        // '\'' → literal single quote (shell escape)
+        if (flat[i] === "'" && flat[i+1] === '\\' && flat[i+2] === "'" && flat[i+3] === "'") {
+          tok += "'"; i += 4;
+        } else if (flat[i] === "'") {
+          i++; break;
+        } else {
+          tok += flat[i++];
+        }
+      }
+      tokens.push(tok);
+    } else if (flat[i] === '"') {
+      i++;
+      let tok = '';
+      while (i < flat.length && flat[i] !== '"') {
+        if (flat[i] === '\\' && i + 1 < flat.length) { i++; tok += flat[i++]; }
+        else tok += flat[i++];
+      }
+      i++;
+      tokens.push(tok);
+    } else {
+      let tok = '';
+      while (i < flat.length && !/\s/.test(flat[i])) tok += flat[i++];
+      tokens.push(tok);
+    }
+  }
+  return tokens;
+}
+
+function parseCurlCommand(text) {
+  const errors   = [];
+  const warnings = [];
+
+  if (/\{\{/.test(text)) {
+    errors.push('Variable references ({{...}}) are not supported here — use literal values');
+  }
+
+  const tokens = tokenizeCurl(text);
+  if (!tokens.length || tokens[0].toLowerCase() !== 'curl') {
+    errors.push('Command must start with curl');
+    return { ok: false, errors, warnings };
+  }
+
+  let method = null;
+  let url    = null;
+  const headerLines = [];
+  let bodyRaw       = null;
+  const formParts   = [];
+  const urlEncParts = [];
+  const unsupported = [];
+  let isFormData    = false;
+  let isUrlEncoded  = false;
+
+  // Flags that take no value (safe to ignore without consuming next token)
+  const NO_VAL_FLAGS = new Set([
+    '--compressed', '-v', '--verbose', '-s', '--silent', '-i', '--include',
+    '-L', '--location', '-k', '--insecure', '-g', '--globoff',
+    '--http1.1', '--http2', '-I', '--head', '--no-keepalive',
+  ]);
+  // Flags that take a value but whose value we don't use
+  const SKIP_VAL_FLAGS = new Set([
+    '-A', '--user-agent', '-e', '--referer', '-m', '--max-time',
+    '--connect-timeout', '-o', '--output', '-x', '--proxy',
+    '--cacert', '--cert', '--key', '--proxy-user',
+  ]);
+
+  let i = 1;
+  while (i < tokens.length) {
+    const tok = tokens[i];
+
+    if (tok === '-X' || tok === '--request') {
+      method = tokens[++i]?.toUpperCase() ?? null;
+      if (!method) errors.push('Missing value for -X/--request');
+    } else if (tok === '-H' || tok === '--header') {
+      const hdr = tokens[++i];
+      if (!hdr) {
+        errors.push('Missing value for -H/--header');
+      } else {
+        const colon = hdr.indexOf(':');
+        if (colon < 1) errors.push(`Invalid header "${hdr}" — expected "Key: Value"`);
+        else headerLines.push(hdr);
+      }
+    } else if (tok === '-d' || tok === '--data' || tok === '--data-raw') {
+      bodyRaw = tokens[++i] ?? null;
+      if (bodyRaw === null) errors.push(`Missing value for ${tok}`);
+    } else if (tok === '--data-binary') {
+      const val = tokens[++i] ?? '';
+      if (val.startsWith('@')) warnings.push('--data-binary @file is not supported — body will be empty');
+      else bodyRaw = val;
+    } else if (tok === '-F' || tok === '--form' || tok === '--form-string') {
+      const val = tokens[++i];
+      if (!val) {
+        errors.push(`Missing value for ${tok}`);
+      } else {
+        isFormData = true;
+        const eq = val.indexOf('=');
+        if (eq < 1) errors.push(`Invalid form field "${val}" — expected "key=value"`);
+        else formParts.push({ key: val.slice(0, eq), value: val.slice(eq + 1) });
+      }
+    } else if (tok === '--data-urlencode') {
+      const val = tokens[++i];
+      if (!val) {
+        errors.push('Missing value for --data-urlencode');
+      } else {
+        isUrlEncoded = true;
+        const eq = val.indexOf('=');
+        urlEncParts.push(eq >= 1
+          ? { key: val.slice(0, eq), value: val.slice(eq + 1) }
+          : { key: val, value: '' });
+      }
+    } else if (tok === '-u' || tok === '--user') {
+      const val = tokens[++i];
+      if (!val) {
+        errors.push('Missing value for -u/--user');
+      } else {
+        const colon = val.indexOf(':');
+        const user  = colon >= 0 ? val.slice(0, colon) : val;
+        const pass  = colon >= 0 ? val.slice(colon + 1) : '';
+        headerLines.push(`Authorization: Basic ${btoa(`${user}:${pass}`)}`);
+        warnings.push('-u/--user converted to Authorization: Basic header; Auth tab will be cleared');
+      }
+    } else if (tok === '--digest') {
+      warnings.push('--digest is not supported — configure Digest auth in the Auth tab');
+    } else if (NO_VAL_FLAGS.has(tok)) {
+      unsupported.push(tok);
+    } else if (SKIP_VAL_FLAGS.has(tok)) {
+      unsupported.push(tok);
+      i++; // skip the value
+    } else if (!tok.startsWith('-')) {
+      url = tok; // positional arg = URL
+    } else {
+      unsupported.push(tok);
+      // Heuristic: if next token looks like a value (not a flag), skip it
+      if (i + 1 < tokens.length && !tokens[i + 1].startsWith('-')) i++;
+    }
+    i++;
+  }
+
+  if (!url) errors.push('No URL found');
+  if (unsupported.length) warnings.push(`Ignored unsupported flags: ${unsupported.join(', ')}`);
+
+  // Parse URL — normalise (add https:// if missing), keep query string intact.
+  // Use new URL() only for validation; store the original string so that
+  // characters like commas in query values are not percent-encoded.
+  let parsedUrl = url || '';
+  if (url) {
+    try {
+      let raw = url;
+      if (!raw.match(/^https?:\/\//i)) raw = 'https://' + raw;
+      new URL(raw); // throws if invalid
+      parsedUrl = raw;
+    } catch (e) {
+      errors.push(`Invalid URL: ${e.message}`);
+    }
+  }
+
+  // Body type + content
+  let bodyType        = 'none';
+  let bodyContent     = null;
+  let bodyContentType = 'text';
+
+  if (isFormData) {
+    bodyType    = 'formdata';
+    bodyContent = formParts;
+  } else if (isUrlEncoded) {
+    bodyType    = 'urlencoded';
+    bodyContent = urlEncParts;
+  } else if (bodyRaw !== null) {
+    bodyType    = 'raw';
+    bodyContent = bodyRaw;
+    const ctLine = headerLines.find(h => /^content-type:/i.test(h));
+    if (ctLine) {
+      const ct = ctLine.slice(ctLine.indexOf(':') + 1).trim().toLowerCase();
+      if (ct.includes('json')) {
+        bodyContentType = 'json';
+        if (!/^\s*[\[{]/.test(bodyRaw)) {
+          errors.push('Body does not look like valid JSON');
+        } else {
+          try { JSON.parse(bodyRaw); } catch (e) {
+            errors.push(`Body is not valid JSON: ${e.message}`);
+          }
+        }
+      } else if (ct.includes('xml'))  bodyContentType = 'xml';
+      else if (ct.includes('html')) bodyContentType = 'html';
+    }
+  }
+
+  // Infer method if not provided
+  if (!method) method = bodyType !== 'none' ? 'POST' : 'GET';
+
+  const clearAuth = headerLines.some(h => /^authorization:/i.test(h));
+
+  return {
+    ok: errors.length === 0,
+    errors, warnings,
+    method, url: parsedUrl,
+    headers: headerLines,
+    bodyType, bodyContent, bodyContentType,
+    clearAuth,
+  };
+}
+
+function applyParsedCurl(result, tab) {
+  const req = tab.req;
+
+  req.method = result.method;
+  req.url    = result.url; // full URL including query string
+
+  // Let Salvo's own sync function extract params from the URL — this keeps
+  // req.url and req.params in the same state as when the user types in the URL bar.
+  req.params = [];
+  syncParamsFromUrl();
+
+  // Replace headers — no trailing empty row (the kv editor's "+ Add" button handles that)
+  req.headers = result.headers.map(h => {
+    const colon = h.indexOf(':');
+    return { id: uid(), key: h.slice(0, colon).trim(), value: h.slice(colon + 1).trim(), enabled: true, note: '' };
+  });
+
+  // Replace body
+  req.body = defaultBody();
+  if (result.bodyType === 'raw') {
+    req.body.type        = 'raw';
+    req.body.raw         = result.bodyContent;
+    req.body.contentType = result.bodyContentType;
+  } else if (result.bodyType === 'formdata') {
+    req.body.type     = 'formdata';
+    req.body.formData = result.bodyContent.map(f => ({ id: uid(), key: f.key, value: f.value, enabled: true }));
+  } else if (result.bodyType === 'urlencoded') {
+    req.body.type     = 'urlencoded';
+    req.body.formData = result.bodyContent.map(f => ({ id: uid(), key: f.key, value: f.value, enabled: true }));
+  }
+
+  // Clear auth if an Authorization header was found in the curl
+  if (result.clearAuth) req.auth = defaultAuth();
+
+  scheduleAutoSave();
 }
 
 // ─── Copy to clipboard ────────────────────────────────────────────────────────

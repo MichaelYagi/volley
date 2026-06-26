@@ -316,3 +316,28 @@
   .kv-grid-notes { gap: 4px; }
   .kv-grid-notes { grid-template-columns: 14px 18px 1fr 1fr 0.8fr 22px; }
 }
+
+/* ─── Curl Edit Mode ─────────────────────────────────────────────────────────── */
+.curl-edit-area {
+  width: 100%;
+  box-sizing: border-box;
+  height: 300px;
+  resize: vertical;
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 12px 14px;
+  color: var(--text);
+}
+.curl-edit-notice {
+  font-size: 11px;
+  margin-bottom: 6px;
+}
+.curl-save-btn { font-size: 11px; padding: 4px 12px; }
+.curl-save-disabled { opacity: 0.4; cursor: not-allowed; }
+.curl-edit-messages { margin-top: 8px; }
+.curl-msg-error { font-size: 11px; color: var(--danger); padding: 3px 0; }
+.curl-msg-warn  { font-size: 11px; color: var(--warning); padding: 3px 0; }

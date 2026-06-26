@@ -39,7 +39,7 @@ function selectReq(id) {
 
 function addCollection() {
   const col = { id: uid(), name: 'New Collection', description: '', folders: [], requests: [] };
-  state.cols.push(col);
+  state.cols.unshift(col);
   state.expandedCols.add(col.id);
   renderSidebar();
   scheduleDiskSave();

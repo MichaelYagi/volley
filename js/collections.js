@@ -632,6 +632,193 @@ function showUrlImportError(msg) {
   err.style.display = 'block';
 }
 
+// ─── Import cURL modal ────────────────────────────────────────────────────────
+
+let _curlImportPending = null;
+
+function openCurlImportModal() {
+  const sel = document.getElementById('curl-import-col-select');
+  sel.innerHTML = state.cols.map(c => `<option value="${esc(c.name)}">${esc(c.name)}</option>`).join('')
+    + `<option value="__new__">New collection…</option>`;
+  sel.value = state.cols.length ? state.cols[0].name : '__new__';
+  const newInput = document.getElementById('curl-import-col-new');
+  newInput.value        = '';
+  newInput.style.display = sel.value === '__new__' ? '' : 'none';
+  document.getElementById('curl-import-text').value = '';
+  _curlImportResetPreview();
+  document.getElementById('curl-import-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('curl-import-text')?.focus(), 0);
+}
+
+function _curlImportColChange() {
+  const sel = document.getElementById('curl-import-col-select');
+  const newInput = document.getElementById('curl-import-col-new');
+  const isNew = sel.value === '__new__';
+  newInput.style.display = isNew ? '' : 'none';
+  if (isNew) setTimeout(() => newInput.focus(), 0);
+  _curlImportResetPreview();
+}
+
+function _curlImportGetColName() {
+  const sel = document.getElementById('curl-import-col-select');
+  if (sel.value === '__new__') {
+    return document.getElementById('curl-import-col-new').value.trim() || 'Imported';
+  }
+  return sel.value;
+}
+
+function closeCurlImportModal() {
+  document.getElementById('curl-import-modal').style.display = 'none';
+  _curlImportPending = null;
+}
+
+function _curlImportResetPreview() {
+  document.getElementById('curl-import-preview').style.display     = 'none';
+  document.getElementById('curl-import-preview-btn').style.display = '';
+  document.getElementById('curl-import-confirm-btn').style.display = 'none';
+  _curlImportPending = null;
+}
+
+function previewCurlImport() {
+  const text    = document.getElementById('curl-import-text').value.trim();
+  const colName = _curlImportGetColName();
+
+  if (!text) { notify('Paste some curl commands first', 'error'); return; }
+
+  const blocks  = parseCurlBatch(text);
+  const results = blocks.map(block => {
+    const hasShellVars = /\$\{?[A-Za-z_][A-Za-z0-9_]*\}?/.test(block.curlText);
+    const parsed       = parseCurlCommand(block.curlText);
+    const name         = block.name || (parsed.url ? curlBatchNameFromUrl(parsed.url) : null) || 'Request';
+    return { name, parsed, hasShellVars, block };
+  });
+
+  _curlImportPending = { results, colName };
+
+  let html       = '';
+  let validCount = 0;
+
+  results.forEach(r => {
+    if (r.parsed.ok) {
+      validCount++;
+      const color = MC[r.parsed.method] || 'var(--text)';
+      html += `<div class="import-item">
+        <span class="req-method" style="color:${color};font-size:10px;font-weight:700;min-width:44px;flex-shrink:0">${esc(r.parsed.method)}</span>
+        <span class="import-item-name">${esc(r.name)}</span>
+        <span class="import-item-tag import-tag-new">New</span>
+      </div>`;
+      if (r.hasShellVars) {
+        html += `<div style="padding:2px 12px 6px 56px;font-size:11px;color:var(--warning)">⚠ Shell variables will appear as literals — replace with Salvo {{variables}} after import</div>`;
+      }
+      (r.parsed.warnings || []).forEach(w => {
+        html += `<div style="padding:2px 12px 6px 56px;font-size:11px;color:var(--warning)">⚠ ${esc(w)}</div>`;
+      });
+    } else {
+      const firstLine = r.block.curlText.split('\n')[0].slice(0, 80);
+      html += `<div class="import-item" style="opacity:0.55">
+        <span style="font-size:10px;font-weight:700;min-width:44px;flex-shrink:0;color:var(--danger)">—</span>
+        <span class="import-item-name" style="color:var(--text-muted);font-family:monospace;font-size:11px">${esc(firstLine)}</span>
+        <span class="import-item-tag" style="background:var(--danger-bg);color:var(--danger)">Skipped</span>
+      </div>`;
+      if (r.hasShellVars) {
+        html += `<div style="padding:2px 12px 6px 56px;font-size:11px;color:var(--danger)">Shell variables detected — replace $VAR with literal values or Salvo {{variables}}</div>`;
+      } else {
+        (r.parsed.errors || []).forEach(e => {
+          html += `<div style="padding:2px 12px 6px 56px;font-size:11px;color:var(--danger)">✕ ${esc(e)}</div>`;
+        });
+      }
+    }
+  });
+
+  if (!html) html = '<div class="import-empty">No curl commands found.</div>';
+
+  document.getElementById('curl-import-preview-list').innerHTML = html;
+  document.getElementById('curl-import-preview').style.display  = '';
+
+  const btn = document.getElementById('curl-import-confirm-btn');
+  if (validCount > 0) {
+    btn.textContent   = `Import ${validCount}`;
+    btn.style.display = '';
+    document.getElementById('curl-import-preview-btn').style.display = 'none';
+  } else {
+    btn.style.display = 'none';
+  }
+}
+
+function confirmCurlImport() {
+  if (!_curlImportPending) return;
+  const { results, colName } = _curlImportPending;
+
+  const valid = results.filter(r => r.parsed.ok);
+  if (!valid.length) return;
+
+  let col = state.cols.find(c => c.name === colName);
+  if (!col) {
+    col = { id: uid(), name: colName, description: '', folders: [], requests: [] };
+    state.cols.unshift(col);
+  }
+  state.expandedCols.add(col.id);
+
+  let added = 0;
+  valid.forEach(r => {
+    const name = _curlUniqueName(r.name, col.requests.map(x => x.name));
+    const req  = normalizeReq({
+      name,
+      method:  r.parsed.method,
+      url:     r.parsed.url,
+      params:  _curlExtractParams(r.parsed.url),
+      headers: r.parsed.headers.map(h => {
+        const c = h.indexOf(':');
+        return { id: uid(), key: h.slice(0, c).trim(), value: h.slice(c + 1).trim(), enabled: true, note: '' };
+      }),
+      body: _curlImportBody(r.parsed),
+    });
+    col.requests.push(req);
+    added++;
+  });
+
+  renderSidebar();
+  scheduleDiskSave();
+  closeCurlImportModal();
+  notify(`Imported ${added} request${added !== 1 ? 's' : ''} into "${colName}"`, 'success');
+}
+
+function _curlUniqueName(name, existing) {
+  if (!existing.includes(name)) return name;
+  let i = 2;
+  while (existing.includes(`${name} (${i})`)) i++;
+  return `${name} (${i})`;
+}
+
+function _curlExtractParams(url) {
+  try {
+    const qi = url.indexOf('?');
+    if (qi < 0) return [];
+    return url.slice(qi + 1).split('&').filter(Boolean).map(pair => {
+      const ei = pair.indexOf('=');
+      return ei < 0
+        ? { id: uid(), key: pair, value: '', enabled: true, note: '' }
+        : { id: uid(), key: pair.slice(0, ei), value: pair.slice(ei + 1), enabled: true, note: '' };
+    });
+  } catch { return []; }
+}
+
+function _curlImportBody(parsed) {
+  const b = defaultBody();
+  if (parsed.bodyType === 'raw') {
+    b.type        = 'raw';
+    b.raw         = parsed.bodyContent;
+    b.contentType = parsed.bodyContentType || 'text';
+  } else if (parsed.bodyType === 'formdata') {
+    b.type     = 'formdata';
+    b.formData = parsed.bodyContent.map(f => ({ id: uid(), key: f.key, value: f.value, enabled: true }));
+  } else if (parsed.bodyType === 'urlencoded') {
+    b.type     = 'urlencoded';
+    b.formData = parsed.bodyContent.map(f => ({ id: uid(), key: f.key, value: f.value, enabled: true }));
+  }
+  return b;
+}
+
 // Dispatches based on JSON shape — shared by file and URL import paths.
 async function importAnyData(data) {
   if (Array.isArray(data.cols)) {

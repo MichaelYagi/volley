@@ -62,6 +62,7 @@
           <input type="file" accept=".json" onchange="importAny(event);closeImportDropdown()" style="display:none">
         </label>
         <button class="import-dropdown-item" onclick="closeImportDropdown();openUrlImportModal()">From URL</button>
+        <button class="import-dropdown-item" onclick="closeImportDropdown();openCurlImportModal()">Import cURL</button>
       </div>
     </div>
     <button onclick="openSettingsModal()" title="Settings">⚙</button>
@@ -402,6 +403,29 @@ SOFTWARE.</pre>
     <div class="modal-footer" style="margin-top:12px">
       <button class="btn-primary" onclick="closeUrlImportModal()">Cancel</button>
       <button id="url-import-btn" onclick="fetchImportFromUrl()">Fetch & Preview</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Import cURL Modal ────────────────────────────────────────────────── -->
+<div id="curl-import-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeCurlImportModal()">
+  <div class="modal curl-import-modal" onclick="event.stopPropagation()">
+    <h3>Import cURL</h3>
+    <label>Collection</label>
+    <select id="curl-import-col-select" onchange="_curlImportColChange()"></select>
+    <input id="curl-import-col-new" placeholder="New collection name" style="display:none" oninput="_curlImportResetPreview()">
+    <label>Paste curl commands</label>
+    <textarea id="curl-import-text" class="curl-edit-area" style="height:200px;margin-bottom:0"
+              spellcheck="false" oninput="_curlImportResetPreview()"
+              placeholder="curl 'https://api.example.com/users'&#10;&#10;# Create User&#10;curl -X POST 'https://api.example.com/users' \&#10;  -H 'Content-Type: application/json' \&#10;  -d '{&quot;name&quot;: &quot;Jane&quot;}'"></textarea>
+    <div id="curl-import-preview" style="display:none;margin-top:12px">
+      <div style="font-size:11px;font-weight:600;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px">Preview</div>
+      <div id="curl-import-preview-list" style="max-height:200px;overflow-y:auto;border:1px solid var(--border);border-radius:6px;padding:4px 0"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn-primary" onclick="closeCurlImportModal()">Cancel</button>
+      <button id="curl-import-preview-btn" onclick="previewCurlImport()">Preview</button>
+      <button id="curl-import-confirm-btn" onclick="confirmCurlImport()" style="display:none">Import</button>
     </div>
   </div>
 </div>

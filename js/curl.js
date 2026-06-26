@@ -534,6 +534,77 @@ function applyParsedCurl(result, tab) {
   scheduleAutoSave();
 }
 
+// ─── Bulk curl batch parser ───────────────────────────────────────────────────
+
+function parseCurlBatch(text) {
+  const lines  = text.split(/\r?\n/);
+  const blocks = [];
+  let pendingName = null;
+  let curlLines   = [];
+  let inCurl      = false;
+
+  const flush = () => {
+    if (curlLines.length) {
+      blocks.push({ name: pendingName, curlText: curlLines.join('\n') });
+    }
+    curlLines   = [];
+    pendingName = null;
+    inCurl      = false;
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    if (!trimmed) {
+      // Blank line ends a curl block unless mid-continuation
+      if (inCurl && !curlLines[curlLines.length - 1]?.trimEnd().endsWith('\\')) flush();
+      continue;
+    }
+
+    if (trimmed.startsWith('#')) {
+      if (inCurl) {
+        // Mid-continuation: # is inside the curl command, skip it
+        if (curlLines[curlLines.length - 1]?.trimEnd().endsWith('\\')) continue;
+        // Otherwise end of curl block — flush before treating # as a name
+        flush();
+      }
+      if (!trimmed.startsWith('#!')) {
+        const n = trimmed.slice(1).trim();
+        pendingName = n || null;
+      }
+      continue;
+    }
+
+    if (/^curl\b/i.test(trimmed)) {
+      if (inCurl) flush();
+      inCurl    = true;
+      curlLines = [line];
+    } else if (inCurl) {
+      curlLines.push(line);
+    } else {
+      // Non-curl, non-comment line resets pending name
+      pendingName = null;
+    }
+  }
+
+  flush();
+  return blocks;
+}
+
+// Derives a request name from a URL: path if non-root, else hostname without www.
+function curlBatchNameFromUrl(url) {
+  try {
+    const safe = url.replace(/\$\{?[A-Za-z_][A-Za-z0-9_]*\}?/g, 'VAR');
+    const withScheme = /^https?:\/\//i.test(safe) ? safe : 'https://' + safe;
+    const u = new URL(withScheme);
+    if (u.pathname && u.pathname !== '/') return u.pathname;
+    const host = u.hostname.replace(/^www\./i, '');
+    return u.port ? `${host}:${u.port}` : host;
+  } catch {
+    return url.replace(/^https?:\/\/(www\.)?/i, '').split(/[?#]/)[0] || 'Request';
+  }
+}
+
 // ─── Copy to clipboard ────────────────────────────────────────────────────────
 
 function copyCurl() {

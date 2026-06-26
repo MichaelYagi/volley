@@ -145,7 +145,8 @@
 
 /* ─── Import Preview Modal ───────────────────────────────────────────────────── */
 .import-modal     { width: 92vw; max-width: 92vw; min-width: 0; display: flex; flex-direction: column; max-height: 90vh; }
-.url-import-modal { width: 480px; max-width: 92vw; }
+.url-import-modal  { width: 480px; max-width: 92vw; }
+.curl-import-modal { width: 560px; max-width: 92vw; }
 
 /* ─── Logs Modal ─────────────────────────────────────────────────────────────── */
 .logs-modal        { width: 860px; max-width: 96vw; display: flex; flex-direction: column; gap: 0; padding: 20px; }

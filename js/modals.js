@@ -194,6 +194,10 @@ function getSelEnv() {
 
 function openAboutModal() {
   document.getElementById('about-modal').style.display = 'flex';
+  const el = document.getElementById('about-version');
+  if (el && !el.textContent) {
+    fetch('/api/version').then(r => r.json()).then(d => { el.textContent = d.version; }).catch(() => {});
+  }
 }
 
 function closeAboutModal() {

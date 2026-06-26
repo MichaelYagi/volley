@@ -821,6 +821,14 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (u.pathname === '/api/version' && req.method === 'GET') {
+    let version = 'unknown';
+    try { version = fs.readFileSync(path.join(__dirname, 'VERSION'), 'utf8').trim(); } catch {}
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ version }));
+    return;
+  }
+
   if (u.pathname === '/api/data' && req.method === 'GET') {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify(loadData()));

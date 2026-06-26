@@ -16,7 +16,7 @@ jobs:
         with:
           node-version: 22
       - name: Run tests
-        run: node --test --test-bail
+        run: node --test
       - name: Create GitHub release
         run: |
           TAG="${{ github.ref_name }}"

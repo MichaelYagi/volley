@@ -122,6 +122,45 @@ function buildMockCurl() {
   return parts.join(' \\\n  ');
 }
 
+// Builds a curl command from a request object without variable interpolation —
+// used for export so {{variables}} are preserved as-is in the output.
+function buildExportCurl(req) {
+  if (!req?.url || req.protocol === 'mcp-stdio') return '';
+  const r = req;
+  const parts = ['curl'];
+
+  if (r.method !== 'GET') parts.push(`-X ${r.method}`);
+
+  let url = r.url;
+  if (!url.match(/^https?:\/\//i)) url = 'https://' + url;
+  parts.push(`'${url.replace(/'/g, `'\\''`)}'`);
+
+  const auth = r.auth || {};
+  if (auth.type === 'bearer' && auth.token)
+    parts.push(`-H 'Authorization: Bearer ${auth.token}'`);
+  else if (auth.type === 'basic' && (auth.username || auth.password))
+    parts.push(`-u '${auth.username}:${auth.password}'`);
+  else if (auth.type === 'apikey' && auth.apiKey)
+    parts.push(`-H '${auth.apiKey}: ${auth.apiValue}'`);
+
+  (r.headers || []).filter(h => h.enabled && h.key)
+    .forEach(h => parts.push(`-H '${h.key}: ${h.value}'`));
+
+  const body = r.body || {};
+  if (body.type === 'raw' && body.raw)
+    parts.push(`-d '${body.raw.replace(/'/g, `'\\''`)}'`);
+  else if (body.type === 'formdata')
+    (body.formData || []).filter(f => f.enabled && f.key && f.type !== 'file')
+      .forEach(f => parts.push(`-F '${f.key}=${f.value}'`));
+  else if (body.type === 'urlencoded') {
+    const pairs = (body.formData || []).filter(f => f.enabled && f.key)
+      .map(f => `${encodeURIComponent(f.key)}=${encodeURIComponent(f.value)}`).join('&');
+    if (pairs) parts.push(`-d '${pairs}'`);
+  }
+
+  return parts.join(' \\\n  ');
+}
+
 // ─── Tab panel HTML ───────────────────────────────────────────────────────────
 
 function curlPanelHTML() {

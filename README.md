@@ -56,6 +56,7 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 - [Cookie Jar](#cookie-jar)
 - [Tabs](#tabs)
 - [Export / Import](#export--import)
+  - [Import cURL](#import-curl)
 - [Git Sync (experimental)](#git-sync-experimental)
 - [Log Viewer](#log-viewer)
 - [Settings](#settings)
@@ -91,7 +92,7 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 - **Mock servers** — enable "Mock" on a request (its "Mock" tab) to define a canned status/headers/body/delay, then start the local mock server (topbar → "Mock Server") to serve every enabled mock on a chosen port. Routes are matched by method and path, with `:name` path segments matching anything (mirroring a request's `{{baseUrl}}/users/:id`-style URL).
 - **Cookie jar** — `Set-Cookie` responses are stored automatically and replayed on later requests to matching domains. View or clear stored cookies from the "Cookies" topbar button.
 - **Response viewer** — status, timing, size, collapsible JSON tree, raw body, response headers. Large JSON responses (>1MB) fall back to raw text to avoid freezing the tab.
-- **cURL tab** — live curl equivalent for every request, updates as you type, one-click copy
+- **cURL** — every request shows a live curl command that updates as you edit, with one-click copy. Click **Edit** to edit the curl directly — change the method, URL, headers, or body in curl syntax and **Save** to apply it back to the request fields. **Import cURL** (under **Import ▾**) accepts one or many curl commands at once: paste a block or a whole bash script, and Salvo creates the requests for you. See [Import cURL](#import-curl).
 - **Notes on params/headers** — annotate individual rows ("Dev key", "pagination cursor", etc.)
 - **Request history** — every sent request logged with method, status, and timing; click to replay
 - **Per-request tab memory** — remembers which tab (Params/Headers/Auth/Body/cURL) you last had open for each request
@@ -101,7 +102,7 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 - **Git sync** *(experimental, enable in Settings)* — push and pull your collections against a remote git repository. See [Git Sync](#git-sync-experimental).
 - **Log viewer** *(enable in Settings)* — a Logs button opens a live-streaming view of server output, replaying a configurable in-memory buffer of recent lines. See [Log Viewer](#log-viewer).
 - **Responsive layout** — on narrow/tablet/phone widths, the sidebar collapses behind a `☰` toggle and slides over the request panel.
-- **Export / Import** — export all collections to a single JSON file (or a single collection, as Salvo or Postman v2.1.0 JSON, via its right-click menu), share it with a team, and import it elsewhere. The **Import ▾** dropdown accepts a local file or a URL (fetched server-side). Imports accept a Salvo export, a Postman collection, or a Postman environment, and merge with existing collections/environments by name, skipping requests with duplicate names.
+- **Export / Import** — the **Export ▾** dropdown exports everything as Salvo JSON, as Postman v2.1 (one file per collection), or as a bash-compatible cURL commands file. Individual collections can also be exported via right-click. The **Import ▾** dropdown accepts a local Salvo/Postman file, a URL, or pasted curl commands (**Import cURL**). See [Export / Import](#export--import).
 - **Auto-save** — every change is saved to disk automatically (debounced), with a save-status indicator in the topbar. `Ctrl+S`/`Cmd+S` still works for an explicit save.
 - **About** — click the Salvo logo/title in the topbar for an About modal with a short description and the MIT license text.
 
@@ -419,16 +420,21 @@ Opening a request from the sidebar opens it in a new tab (or focuses its existin
 
 ## Export / Import
 
-The **Export** button (topbar) downloads a `salvo-export.json` containing all collections, folders, requests, and environments (history is left out — it's local clutter, not something worth sharing).
+The **Export ▾** dropdown (topbar) offers three formats:
 
-A single collection can also be exported on its own via its right-click menu, as either a Salvo JSON file (**Export JSON**) or a Postman v2.1.0 collection (**Export as Postman**) — handy for sharing one collection with someone still on Postman.
+- **Salvo** — downloads `salvo-export.json` containing all collections, folders, requests, and environments. This is the format [Import](#export--import) expects for the full round-trip. History is excluded — it's local clutter, not something worth sharing.
+- **Postman v2.1** — downloads one `.postman_collection.json` file per collection (one download per collection). Useful for sharing with teammates on Postman.
+- **cURL commands** — downloads `salvo-export.sh`, a bash-compatible text file with every request rendered as a named `curl` command. `{{variable}}` placeholders are preserved as-is. Requests are grouped by collection, with folder membership noted in the name (`# Folder / Request`). This file can be pasted straight back into **Import ▾ → Import cURL** to recreate the requests.
 
-The **Import ▾** dropdown offers two ways to get data in:
+A single collection can also be exported on its own via its right-click menu, as either a Salvo JSON file (**Export JSON**) or a Postman v2.1.0 collection (**Export as Postman**) — handy for sharing one collection without exporting everything.
+
+The **Import ▾** dropdown offers three ways to get data in:
 
 - **From file** — pick a local `.json` file
 - **From URL** — enter a URL; Salvo's server fetches it (so CORS and auth headers on the remote server are not an obstacle) and feeds the result into the same import pipeline
+- **Import cURL** — paste curl commands directly; see [Import cURL](#import-curl) below
 
-Either route accepts:
+From file and From URL accept:
 - A Salvo export (`{ "cols": [...], "envs": [...] }`) — opens an **import preview modal** before anything is applied (see below)
 - A Postman v2.x collection — added as a new collection; any collection-level Postman variables are imported as an environment named after the collection
 - A Postman environment export — merged into a matching (or newly created) environment by name; new vars are added and changed vars are updated
@@ -446,6 +452,29 @@ Every item is checked by default. Uncheck any you want to leave as-is, then clic
 The **Overwrite all** checkbox at the top checks every item at once — useful when you want to fully sync from the exported file without reviewing individual requests.
 
 Environment variables in the export are always synced automatically (new vars added, changed vars updated, identical vars skipped) regardless of which requests you check.
+
+## Import cURL
+
+**Import ▾ → Import cURL** creates one or more requests from curl commands you paste in.
+
+1. Pick a collection from the dropdown — existing collections are listed; choose **New collection…** to create one.
+2. Paste curl commands into the textarea.
+3. Click **Preview** to see what will be imported.
+4. Click **Import** to add the requests.
+
+**Format** — the importer is designed to accept a raw paste with no special formatting required:
+
+- Multiple curl commands can be separated by blank lines, placed back-to-back with no separator, or separated only by a `# comment` — all three work.
+- A `# Name` comment immediately before a curl becomes that request's name. This is bash-compatible: pasting a real bash script with `# comment` lines before each curl works naturally.
+- Shebangs (`#!/bin/bash`), variable assignments, `echo` calls, and other non-curl lines are silently skipped.
+- When no `# comment` is present, the request is named from the URL: the path (`/v2/users/search`) for non-root URLs, or the hostname without `www.` (`api.example.com`, `localhost:8100`) for root URLs.
+- Duplicate names within the target collection are auto-suffixed (` (2)`, ` (3)`, …).
+
+**Merging** — if the chosen collection already exists, the imported requests are added to it. If not, a new collection is created at the top of the sidebar.
+
+**Shell variables** (`$TOKEN`, `${BASE_URL}`) appear as literals in the imported request — they're not resolved. Replace them with Salvo `{{variables}}` or literal values after import.
+
+The **Edit** button on the cURL tab of any imported request lets you edit the curl directly and save it back to the request fields — so importing a curl is just the starting point, not a one-time migration.
 
 ## Git Sync (experimental)
 

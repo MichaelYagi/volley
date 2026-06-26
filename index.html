@@ -53,7 +53,14 @@
     <button id="git-topbar-btn" onclick="openGitModal()" title="Git sync — push/pull your collections repository" style="display:none">
       Git<span id="git-changes-badge" class="tab-badge" style="display:none">●</span>
     </button>
-    <button onclick="exportAll()" title="Download all collections as a JSON file">Export</button>
+    <div class="import-dropdown" id="export-dropdown">
+      <button onclick="toggleExportDropdown()" title="Export collections">Export ▾</button>
+      <div class="import-dropdown-menu" id="export-dropdown-menu" style="display:none">
+        <button class="import-dropdown-item" onclick="closeExportDropdown();exportAll()">Salvo</button>
+        <button class="import-dropdown-item" onclick="closeExportDropdown();exportAllPostman()">Postman v2.1</button>
+        <button class="import-dropdown-item" onclick="closeExportDropdown();exportAllCurl()">cURL commands</button>
+      </div>
+    </div>
     <div class="import-dropdown" id="import-dropdown">
       <button onclick="toggleImportDropdown()" title="Import a Salvo export or Postman collection">Import ▾</button>
       <div class="import-dropdown-menu" id="import-dropdown-menu" style="display:none">

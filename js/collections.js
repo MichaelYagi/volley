@@ -359,6 +359,62 @@ function exportAll() {
   a.click();
 }
 
+function exportAllPostman() {
+  if (!state.cols.length) { notify('No collections to export', 'error'); return; }
+  state.cols.forEach((col, i) => setTimeout(() => exportColAsPostman(col.id), i * 150));
+  notify(`Downloading ${state.cols.length} Postman file${state.cols.length !== 1 ? 's' : ''}…`, 'success');
+}
+
+function exportAllCurl() {
+  const lines = ['#!/bin/bash', ''];
+  let total   = 0;
+
+  state.cols.forEach(col => {
+    const colLines = [];
+    const addReq   = (r, folder) => {
+      const cmd = buildExportCurl(r);
+      if (!cmd) return;
+      colLines.push(`# ${folder ? `${folder} / ${r.name}` : r.name}`);
+      colLines.push(cmd);
+      colLines.push('');
+      total++;
+    };
+    col.requests.forEach(r => addReq(r, null));
+    col.folders.forEach(f => f.requests.forEach(r => addReq(r, f.name)));
+    if (!colLines.length) return;
+    lines.push(`# ── ${col.name} ──`);
+    lines.push('');
+    lines.push(...colLines);
+  });
+
+  if (!total) { notify('No requests to export', 'error'); return; }
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = 'salvo-export.sh';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  notify(`Exported ${total} request${total !== 1 ? 's' : ''} as cURL`, 'success');
+}
+
+// ─── Export dropdown ──────────────────────────────────────────────────────────
+
+function toggleExportDropdown() {
+  const menu = document.getElementById('export-dropdown-menu');
+  const open = menu.style.display !== 'none';
+  if (open) { closeExportDropdown(); return; }
+  menu.style.display = 'flex';
+  setTimeout(() => document.addEventListener('click', _exportDropdownOutside, { once: true }), 0);
+}
+
+function closeExportDropdown() {
+  document.getElementById('export-dropdown-menu').style.display = 'none';
+}
+
+function _exportDropdownOutside(e) {
+  if (!document.getElementById('export-dropdown').contains(e.target)) closeExportDropdown();
+}
+
 // Merge a list of [key, value] vars into an environment matched by name,
 // creating it if it doesn't exist. New keys are added; changed values are
 // replaced; identical keys are left untouched.

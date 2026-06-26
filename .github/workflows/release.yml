@@ -1,0 +1,29 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Run tests
+        run: node --test --test-bail
+      - name: Create GitHub release
+        run: |
+          TAG="${{ github.ref_name }}"
+          if [[ "$TAG" == *-* ]]; then
+            gh release create "$TAG" --generate-notes --prerelease --title "$TAG"
+          else
+            gh release create "$TAG" --generate-notes --title "$TAG"
+          fi
+        env:
+          GH_TOKEN: ${{ github.token }}

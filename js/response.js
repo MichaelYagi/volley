@@ -109,6 +109,17 @@ function renderRespPanel() {
 
     wrap.innerHTML = `<pre>${esc(resp.body)}</pre>`;
 
+  // Raw tab
+  } else if (tab.respTab === 'raw') {
+    copyBtn.style.display = '';
+    exBtn.style.display   = 'none';
+    if (resp.bodyType === 'binary') {
+      copyBtn.style.display = 'none';
+      wrap.innerHTML = `<span class="muted">Binary response — raw preview not available</span>`;
+    } else {
+      wrap.innerHTML = `<pre>${esc(resp.body)}</pre>`;
+    }
+
   // Headers tab
   } else if (tab.respTab === 'headers') {
     copyBtn.style.display = 'none';
@@ -179,6 +190,11 @@ function renderSseRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exB
     return;
   }
 
+  if (tab.respTab === 'raw') {
+    wrap.innerHTML = `<span class="muted">Raw body is not available for SSE streams.</span>`;
+    return;
+  }
+
   if (tab.respTab === 'tests') {
     wrap.innerHTML = `<span class="muted">Tests are not supported for SSE streams.</span>`;
     return;
@@ -233,6 +249,11 @@ function renderWsRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exBt
 
   if (tab.respTab === 'headers') {
     wrap.innerHTML = `<span class="muted">Headers are not available for WebSocket connections.</span>`;
+    return;
+  }
+
+  if (tab.respTab === 'raw') {
+    wrap.innerHTML = `<span class="muted">Raw body is not available for WebSocket connections.</span>`;
     return;
   }
 
@@ -330,6 +351,11 @@ function renderMcpRespPanel(tab, resp, wrap, badge, timeEl, sizeEl, copyBtn, exB
 
   if (tab.respTab === 'headers') {
     wrap.innerHTML = `<span class="muted">Headers are not available for MCP sessions.</span>`;
+    return;
+  }
+
+  if (tab.respTab === 'raw') {
+    wrap.innerHTML = `<span class="muted">Raw body is not available for MCP sessions.</span>`;
     return;
   }
 

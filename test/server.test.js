@@ -10,9 +10,9 @@ const fs   = require('fs');
 const os   = require('os');
 const path = require('path');
 
-// server.js reads SALVO_DATA_DIR at module-load time, so set it before requiring.
-const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'salvo-test-'));
-process.env.SALVO_DATA_DIR = DATA_DIR;
+// server.js reads VOLLEY_DATA_DIR at module-load time, so set it before requiring.
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'volley-test-'));
+process.env.VOLLEY_DATA_DIR = DATA_DIR;
 
 const { sanitizeName, uniqueName, buildColsFromFiles, loadData, saveData, normalizeEnvs, parseDigestChallenge, buildDigestHeader, parseSetCookie, cookieMatches, updateJarCookie, loadCookies, saveCookies, getCliArg, findMockMatch, startMockServer, stopMockServer, mockStatus, wsAcceptKey, encodeWsFrame, WsFrameDecoder, WS_OP } = require('../server.js');
 
@@ -34,12 +34,12 @@ test('uniqueName de-duplicates case-insensitively with (2), (3), ...', () => {
   assert.strictEqual(uniqueName('request', used), 'request (3)');
 });
 
-test('buildColsFromFiles groups requests, nests folders, and reads _salvo/*', () => {
+test('buildColsFromFiles groups requests, nests folders, and reads _volley/*', () => {
   const files = [
     { path: 'Demo/Get Users.json', content: JSON.stringify({ name: 'Get Users', method: 'GET', url: '/users' }) },
     { path: 'Demo/Create User.json', content: JSON.stringify({ name: 'Create User', method: 'POST', url: '/users', folder: 'Admin' }) },
-    { path: '_salvo/envs.json', content: JSON.stringify([{ id: 'e1', name: 'Dev', vars: {} }]) },
-    { path: '_salvo/history.json', content: JSON.stringify([{ method: 'GET', url: '/x', status: 200, elapsed: 12 }]) },
+    { path: _volley/envs.json', content: JSON.stringify([{ id: 'e1', name: 'Dev', vars: {} }]) },
+    { path: _volley/history.json', content: JSON.stringify([{ method: 'GET', url: '/x', status: 200, elapsed: 12 }]) },
     { path: 'not-json.txt', content: 'ignored' },
   ];
 
@@ -219,11 +219,11 @@ test('saveData writes a per-collection _meta.json that preserves folder order an
   assert.strictEqual(loaded.cols[0].folders[1].requests[0].name, 'Req');
 });
 
-test('saveData writes _salvo/colOrder.json and loadData sorts collections by it', () => {
+test('saveData writes _volley/colOrder.json and loadData sorts collections by it', () => {
   resetData();
 
   saveData({ cols: [{ name: 'Alpha', requests: [], folders: [] }, { name: 'Beta', requests: [], folders: [] }], envs: [], hist: [] });
-  const colOrder = JSON.parse(fs.readFileSync(path.join(DATA_DIR, '_salvo', 'colOrder.json'), 'utf8'));
+  const colOrder = JSON.parse(fs.readFileSync(path.join(DATA_DIR, '_volley', 'colOrder.json'), 'utf8'));
   assert.deepStrictEqual(colOrder, ['Alpha', 'Beta']);
 
   // Re-save with the collections swapped — colOrder.json (and thus load order) should follow.

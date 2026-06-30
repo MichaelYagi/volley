@@ -39,7 +39,7 @@ The Headers tab shows a read-only section previewing the `Authorization`/API key
 
 ### CORS handling
 
-Salvo tries a direct `fetch()` first; if the browser blocks it, the request is automatically retried through the local Node server. SSE and Digest Auth always go through the server.
+Volley tries a direct `fetch()` first; if the browser blocks it, the request is automatically retried through the local Node server. SSE and Digest Auth always go through the server.
 
 ### Realtime and streaming
 
@@ -47,7 +47,7 @@ Salvo tries a direct `fetch()` first; if the browser blocks it, the request is a
 - **WebSocket** — `ws://`/`wss://` URLs switch the editor to a Connect/Disconnect flow with a transcript and a message composer; connections are proxied through the local server so browser CORS restrictions don't apply
 - **MCP (Model Context Protocol)** — a Protocol dropdown in the URL bar selects the transport:
   - *MCP · Streamable HTTP* — enter a normal `https://` URL; proxied server-side
-  - *MCP · stdio* — the URL field becomes a command line; Salvo spawns the process and speaks newline-delimited JSON-RPC over its stdin/stdout
+  - *MCP · stdio* — the URL field becomes a command line; Volley spawns the process and speaks newline-delimited JSON-RPC over its stdin/stdout
 
   Either way, `initialize`/`notifications/initialized` are sent automatically. A transcript and composer (with method autocomplete for common MCP methods) appear in the response panel.
 
@@ -118,19 +118,19 @@ Every request has a live cURL preview that updates as you edit. One-click copy. 
 
 **Export ▾** dropdown offers three formats:
 
-- **Salvo** — `salvo-export.json` with all collections and environments
+- **Volley** — `volley-export.json` with all collections and environments
 - **Postman v2.1** — one `.postman_collection.json` per collection
-- **cURL commands** — `salvo-export.sh`, a bash-compatible file with every request as a named `curl` command; `{{variable}}` placeholders are preserved and the file can be pasted straight back into Import cURL
+- **cURL commands** — `volley-export.sh`, a bash-compatible file with every request as a named `curl` command; `{{variable}}` placeholders are preserved and the file can be pasted straight back into Import cURL
 
-Individual collections can also be exported as Salvo JSON or Postman v2.1 via their right-click menu.
+Individual collections can also be exported as Volley JSON or Postman v2.1 via their right-click menu.
 
 **Import ▾** dropdown accepts:
 
-- **From file** — a local Salvo export, Postman v2.x collection, or Postman environment JSON
-- **From URL** — Salvo fetches it server-side (no CORS issues) and feeds it through the same pipeline
+- **From file** — a local Volley export, Postman v2.x collection, or Postman environment JSON
+- **From URL** — Volley fetches it server-side (no CORS issues) and feeds it through the same pipeline
 - **Import cURL** — paste one or many curl commands; a preview shows what will be imported before anything is written
 
-Importing a Salvo export shows a preview modal (new / changed / identical) before applying anything.
+Importing a Volley export shows a preview modal (new / changed / identical) before applying anything.
 
 ### Import cURL
 
@@ -138,7 +138,7 @@ Paste any number of curl commands (from a block, a bash script, or back-to-back 
 
 ### Git Sync (experimental)
 
-Push and pull collections against a remote git repository (HTTPS, any host). Salvo maintains a local clone as a bridge; `data/` itself is never a git repo. Conflict resolution modal for files changed on both sides. Optional auto-sync on a configurable interval; multi-tab safe via `localStorage` coordination.
+Push and pull collections against a remote git repository (HTTPS, any host). Volley maintains a local clone as a bridge; `data/` itself is never a git repo. Conflict resolution modal for files changed on both sides. Optional auto-sync on a configurable interval; multi-tab safe via `localStorage` coordination.
 
 ### Log Viewer (opt-in)
 
@@ -157,11 +157,11 @@ Dark, Light, Nord, Carnival, and Garbagefire — selected from a topbar picker a
 
 ### Shared data folder / local-network sync
 
-Pass `--data-dir=<path>` to point Salvo at any folder — a Dropbox folder, a network share, a separate git repo — so multiple machines can work from the same collections and environments.
+Pass `--data-dir=<path>` to point Volley at any folder — a Dropbox folder, a network share, a separate git repo — so multiple machines can work from the same collections and environments.
 
 ### About modal
 
-Click the Salvo logo in the topbar to see a short description, a link to the documentation, the MIT license text, and links to GitHub and YouTube. Shows the current release version.
+Click the Volley logo in the topbar to see a short description, a link to the documentation, the MIT license text, and links to GitHub and YouTube. Shows the current release version.
 
 ### CI
 

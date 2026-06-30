@@ -48,7 +48,7 @@ function loadSandbox() {
   return sandbox;
 }
 
-test('parsePostman converts a Postman v2.1 collection into Salvo shape', () => {
+test('parsePostman converts a Postman v2.1 collection into Volley shape', () => {
   const sandbox = loadSandbox();
 
   const postman = {

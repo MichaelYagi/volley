@@ -584,7 +584,7 @@ async function resetAllChanges() {
 // ─── Server status indicator ──────────────────────────────────────────────────
 (function startServerPoll() {
   const dot     = document.getElementById('server-status');
-  const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('salvo-server-status') : null;
+  const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('volley-server-status') : null;
   let online    = true;
 
   function applyStatus(nowOnline) {

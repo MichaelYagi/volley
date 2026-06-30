@@ -66,7 +66,7 @@ function buildCurl() {
       params: {
         protocolVersion: MCP_PROTOCOL_VERSION,
         capabilities:    {},
-        clientInfo:      { name: 'Salvo', version: '1.0' },
+        clientInfo:      { name: 'Volley', version: '1.0' },
       },
     });
     parts.push(`-d '${payload.replace(/'/g, `'\\''`)}'`);
@@ -542,7 +542,7 @@ function applyParsedCurl(result, tab) {
   req.method = result.method;
   req.url    = result.url; // full URL including query string
 
-  // Let Salvo's own sync function extract params from the URL — this keeps
+  // Let Volley's own sync function extract params from the URL — this keeps
   // req.url and req.params in the same state as when the user types in the URL bar.
   req.params = [];
   syncParamsFromUrl();

@@ -228,7 +228,7 @@ function notify(msg, type = 'info') {
 /**
  * Copy text to the clipboard. `navigator.clipboard` is only available in
  * secure contexts (HTTPS or localhost) — on a plain http:// LAN address
- * (e.g. accessing Salvo via another machine's IP) it's undefined, so fall
+ * (e.g. accessing Volley via another machine's IP) it's undefined, so fall
  * back to a hidden textarea + execCommand('copy').
  */
 function copyText(text) {

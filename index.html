@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Salvo</title>
+  <title>Volley</title>
 
   <link rel="icon" type="image/svg+xml" href="img/favicon.svg">
   <link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
@@ -21,7 +21,7 @@
   <!-- Apply the saved theme before first paint to avoid a flash of the default theme -->
   <script>
     (function () {
-      var theme = localStorage.getItem('salvo-theme');
+      var theme = localStorage.getItem('volley-theme');
       if (theme) document.documentElement.setAttribute('data-theme', theme);
     })();
   </script>
@@ -33,9 +33,9 @@
   <!-- ── Topbar ─────────────────────────────────────────────────────────── -->
   <div id="topbar">
     <button id="sidebar-toggle" onclick="toggleSidebar()" aria-label="Toggle sidebar">☰</button>
-    <button id="about-btn" onclick="openAboutModal()" title="About Salvo" style="display:flex;align-items:center;gap:6px;padding:0;background:none">
+    <button id="about-btn" onclick="openAboutModal()" title="About Volley" style="display:flex;align-items:center;gap:6px;padding:0;background:none">
       <img src="img/favicon.svg" alt="" width="20" height="20" style="vertical-align:middle;border-radius:4px">
-      <span class="logo">Salvo</span>
+      <span class="logo">Volley</span>
     </button>
     <span class="tb-div">|</span>
     <select id="env-select" style="width:150px;padding:3px 7px;font-size:12px" onchange="envQuickSwitch(this.value)"></select>
@@ -56,13 +56,13 @@
     <div class="import-dropdown" id="export-dropdown">
       <button onclick="toggleExportDropdown()" title="Export collections">Export ▾</button>
       <div class="import-dropdown-menu" id="export-dropdown-menu" style="display:none">
-        <button class="import-dropdown-item" onclick="closeExportDropdown();exportAll()">Salvo</button>
+        <button class="import-dropdown-item" onclick="closeExportDropdown();exportAll()">Volley</button>
         <button class="import-dropdown-item" onclick="closeExportDropdown();exportAllPostman()">Postman v2.1</button>
         <button class="import-dropdown-item" onclick="closeExportDropdown();exportAllCurl()">cURL commands</button>
       </div>
     </div>
     <div class="import-dropdown" id="import-dropdown">
-      <button onclick="toggleImportDropdown()" title="Import a Salvo export or Postman collection">Import ▾</button>
+      <button onclick="toggleImportDropdown()" title="Import a Volley export or Postman collection">Import ▾</button>
       <div class="import-dropdown-menu" id="import-dropdown-menu" style="display:none">
         <label class="import-dropdown-item">
           From file
@@ -295,14 +295,14 @@
 <div id="about-modal" class="modal-bg" style="display:none"
      onclick="if(event.target===this)closeAboutModal()">
   <div class="modal" onclick="event.stopPropagation()">
-    <h3>About Salvo</h3>
-    <p>Salvo is a local-first HTTP client — a lightweight Postman alternative. It runs
+    <h3>About Volley</h3>
+    <p>Volley is a local-first HTTP client — a lightweight Postman alternative. It runs
        entirely on your machine: collections, environments, and history are stored as
        plain JSON files on disk, with no account, cloud sync, or telemetry. Postman
        collections and environments can be imported directly via the Import button.</p>
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:12px">
-      <a href="https://github.com/MichaelYagi/salvo/actions/workflows/test.yml" target="_blank" rel="noopener noreferrer" title="Tests" style="display:inline-flex;align-items:center">
-        <img src="https://img.shields.io/github/actions/workflow/status/MichaelYagi/salvo/test.yml?label=tests" alt="Tests status" style="display:block;height:20px;width:auto">
+      <a href="https://github.com/MichaelYagi/volley/actions/workflows/test.yml" target="_blank" rel="noopener noreferrer" title="Tests" style="display:inline-flex;align-items:center">
+        <img src="https://img.shields.io/github/actions/workflow/status/MichaelYagi/volley/test.yml?label=tests" alt="Tests status" style="display:block;height:20px;width:auto">
       </a>
       <a href="https://github.com/MichaelYagi" target="_blank" rel="noopener noreferrer" title="GitHub" style="color:var(--text-muted);display:flex;align-items:center">
         <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>
@@ -311,7 +311,7 @@
         <svg width="26" height="26" viewBox="0 -1 16 16" fill="currentColor"><path d="M8.05 1.999h.07c.667.002 4.02.025 4.957.27a2.01 2.01 0 0 1 1.415 1.42c.247.928.27 2.78.273 3.197v.226c-.003.417-.026 2.27-.273 3.197a2.01 2.01 0 0 1-1.415 1.42c-.937.245-4.29.268-4.957.27h-.07c-.667-.002-4.02-.025-4.957-.27a2.01 2.01 0 0 1-1.415-1.42c-.247-.928-.27-2.78-.273-3.197v-.226c.003-.417.026-2.27.273-3.197A2.01 2.01 0 0 1 3.093 2.27c.937-.245 4.29-.268 4.957-.27ZM6.5 5.5v4l3.5-2-3.5-2Z"/></svg>
       </a>
     </div>
-    <p style="margin-bottom:12px"><a href="https://github.com/MichaelYagi/salvo/blob/main/README.md" target="_blank" rel="noopener" style="color:var(--accent)">Documentation →</a></p>
+    <p style="margin-bottom:12px"><a href="https://github.com/MichaelYagi/volley/blob/main/README.md" target="_blank" rel="noopener" style="color:var(--accent)">Documentation →</a></p>
     <label>License (MIT)</label>
     <pre style="white-space:pre-wrap;font-family:monospace;font-size:11px;line-height:1.5;color:var(--text-muted);background:var(--bg-input);border-radius:6px;padding:10px;max-height:220px;overflow-y:auto;margin-bottom:12px">MIT License
 
@@ -404,7 +404,7 @@ SOFTWARE.</pre>
 <div id="url-import-modal" class="modal-bg" style="display:none" onclick="if(event.target===this)closeUrlImportModal()">
   <div class="modal url-import-modal" onclick="event.stopPropagation()">
     <h3 style="margin:0 0 12px">Import from URL</h3>
-    <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">Enter the URL of a Salvo export or Postman collection (.json).</p>
+    <p style="font-size:12px;color:var(--text-muted);margin:0 0 10px">Enter the URL of a Volley export or Postman collection (.json).</p>
     <input id="url-import-input" type="url" placeholder="https://example.com/collection.json"
            style="width:100%;margin-bottom:8px"
            onkeydown="if(event.key==='Enter')fetchImportFromUrl()">

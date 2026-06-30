@@ -11,7 +11,7 @@ function findReq(id) {
 // Request `id`s are ephemeral and regenerated on every load (see CLAUDE.md), so
 // they can't be used to refer to a request across a page reload. These two
 // helpers translate to/from a stable {col, folder, name} location, used to
-// persist open tabs in data/_salvo/tabs.json.
+// persist open tabs in data/_volley/tabs.json.
 function findReqLocation(id) {
   for (const col of state.cols) {
     for (const r of col.requests) if (r.id === id) return { col: col.name, folder: null, name: r.name };
@@ -361,14 +361,14 @@ function moveColToPosition(colId, targetIndex) {
 // ─── Backup export / import (all collections, as plain JSON) ──────────────────
 
 // Exports every collection (requests + folders) and environment as a single
-// JSON file that can be re-imported via importAny() — by this Salvo instance
+// JSON file that can be re-imported via importAny() — by this Volley instance
 // or shared with a team and merged into theirs.
 function exportAll() {
   const payload = { cols: clone(state.cols), envs: clone(state.envs) };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const a    = document.createElement('a');
   a.href     = URL.createObjectURL(blob);
-  a.download = 'salvo-export.json';
+  a.download = 'volley-export.json';
   a.click();
 }
 
@@ -404,7 +404,7 @@ function exportAllCurl() {
   const blob = new Blob([lines.join('\n')], { type: 'text/plain' });
   const a    = document.createElement('a');
   a.href     = URL.createObjectURL(blob);
-  a.download = 'salvo-export.sh';
+  a.download = 'volley-export.sh';
   a.click();
   URL.revokeObjectURL(a.href);
   notify(`Exported ${total} request${total !== 1 ? 's' : ''} as cURL`, 'success');
@@ -777,7 +777,7 @@ function previewCurlImport() {
         <span class="import-item-tag import-tag-new">New</span>
       </div>`;
       if (r.hasShellVars) {
-        html += `<div style="padding:2px 12px 6px 56px;font-size:11px;color:var(--warning)">⚠ Shell variables will appear as literals — replace with Salvo {{variables}} after import</div>`;
+        html += `<div style="padding:2px 12px 6px 56px;font-size:11px;color:var(--warning)">⚠ Shell variables will appear as literals — replace with Volley {{variables}} after import</div>`;
       }
       (r.parsed.warnings || []).forEach(w => {
         html += `<div style="padding:2px 12px 6px 56px;font-size:11px;color:var(--warning)">⚠ ${esc(w)}</div>`;
@@ -790,7 +790,7 @@ function previewCurlImport() {
         <span class="import-item-tag" style="background:var(--danger-bg);color:var(--danger)">Skipped</span>
       </div>`;
       if (r.hasShellVars) {
-        html += `<div style="padding:2px 12px 6px 56px;font-size:11px;color:var(--danger)">Shell variables detected — replace $VAR with literal values or Salvo {{variables}}</div>`;
+        html += `<div style="padding:2px 12px 6px 56px;font-size:11px;color:var(--danger)">Shell variables detected — replace $VAR with literal values or Volley {{variables}}</div>`;
       } else {
         (r.parsed.errors || []).forEach(e => {
           html += `<div style="padding:2px 12px 6px 56px;font-size:11px;color:var(--danger)">✕ ${esc(e)}</div>`;
@@ -914,7 +914,7 @@ async function importAnyData(data) {
     scheduleDiskSave();
     notify(`Imported environment "${envName}" (${changed} var${changed === 1 ? '' : 's'})`, 'success');
   } else {
-    throw new Error('Not a Salvo export, Postman collection, or Postman environment');
+    throw new Error('Not a Volley export, Postman collection, or Postman environment');
   }
 }
 

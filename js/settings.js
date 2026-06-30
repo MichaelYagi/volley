@@ -1,11 +1,11 @@
 // ─── Settings & feature flags ─────────────────────────────────────────────────
 
 function _getSettings() {
-  try { return JSON.parse(localStorage.getItem('salvo-settings') || '{}'); } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem('volley-settings') || '{}'); } catch { return {}; }
 }
 
 function _saveSettings(s) {
-  localStorage.setItem('salvo-settings', JSON.stringify(s));
+  localStorage.setItem('volley-settings', JSON.stringify(s));
 }
 
 function isFeatureEnabled(name) {

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Salvo is a local-first HTTP client — a lightweight Postman alternative. Single-page app, pure HTML/CSS/JS, no framework, no build step, no dependencies. Runs from a local web server.
+Volley is a local-first HTTP client — a lightweight Postman alternative. Single-page app, pure HTML/CSS/JS, no framework, no build step, no dependencies. Runs from a local web server.
 
 ## Running locally
 
@@ -26,7 +26,7 @@ node server.js --port=3000
 - `/api/ws-proxy` (WebSocket upgrade) — relays a browser WebSocket connection to an upstream `ws(s)://` target (see `js/websocket.js`)
 - `/api/mcp-stdio` (WebSocket upgrade) — spawns a local child process for `mcp-stdio` protocol requests and relays newline-delimited JSON-RPC over its stdin/stdout (see `js/mcp.js`)
 
-A plain static server (e.g. `python3 -m http.server`) won't work — Salvo needs these API endpoints to load and save its data.
+A plain static server (e.g. `python3 -m http.server`) won't work — Volley needs these API endpoints to load and save its data.
 
 ## Data storage (`data/`)
 
@@ -35,7 +35,7 @@ A plain static server (e.g. `python3 -m http.server`) won't work — Salvo needs
 - **Collections are directories**: `data/<Collection Name>/`
 - **Requests are files**: `data/<Collection Name>/<Request Name>.json`, containing the Request object (see below), minus its `id` (ids are ephemeral and regenerated on load)
 - **Folders are NOT directories** — a request that belongs to a Postman-style folder has an extra `"folder": "<Folder Name>"` field in its JSON file. The directory layout is always flat, one level deep.
-- **Envs, history, and open tabs**: `data/_salvo/envs.json`, `data/_salvo/history.json`, and `data/_salvo/tabs.json`
+- **Envs, history, and open tabs**: `data/_volley/envs.json`, `data/_volley/history.json`, and `data/_volley/tabs.json`
 
 On load, `server.js` walks `data/`, groups requests by their `folder` field back into `Collection.folders`, and regenerates `id`s. On save, it wipes and rewrites every collection directory from the current in-memory state — renames/deletions are handled by this wipe-and-rewrite, not by diffing. Filenames are sanitized and de-duplicated (` (2)`, ` (3)`, ...) via `sanitizeName`/`uniqueName` in `server.js`.
 
@@ -81,7 +81,7 @@ state = {
   envs:    [],          // array of { id, name, vars: [{ id, key, value, enabled }] }
   hist:    [],          // array of { method, url, status, elapsed } — capped at 200
 
-  // runtime only — open tabs are restored from data/_salvo/tabs.json on load
+  // runtime only — open tabs are restored from data/_volley/tabs.json on load
   // (see openTabs/activeIndex below) and re-saved via serializeOpenTabs()/activeOpenTabIndex()
   activeEnv:       'default',
   tabs:            [],   // array of Tab objects (browser-style request tabs), see below
@@ -112,7 +112,7 @@ state = {
 
 On a fresh load with no saved tabs, the app starts with zero tabs
 (`#empty-state` shown). Otherwise `loadData()` restores `state.tabs` from
-`data/_salvo/tabs.json` (`{ openTabs: [{col, folder, name, reqTab}],
+`data/_volley/tabs.json` (`{ openTabs: [{col, folder, name, reqTab}],
 activeIndex }`, written by `saveData()`/the `beforeunload` handler). Request
 `id`s are ephemeral and regenerated on every load, so each open tab is keyed
 by a stable `{col, folder, name}` location instead — `findReqLocation(id)`/

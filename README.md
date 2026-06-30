@@ -1,14 +1,14 @@
-# Salvo
+# Volley
 
 A fast, free, local-first HTTP client — the core Postman workflow you already know, without the account walls, forced cloud sync, telemetry, or subscription nags.
 
-Salvo is just a small Node server and some plain HTML/JS/CSS. Clone it, run one command, and you have a full-featured API client: collections and folders, environments and globals, OAuth2/JWT/Digest auth, pre-request and test scripts, a collection runner with CSV/JSON data-driven runs, a mock server, a cookie jar, and one-click cURL — all working offline, all stored as plain JSON files you fully own. Import your existing Postman collections and environments and you're up and running in minutes.
+Volley is just a small Node server and some plain HTML/JS/CSS. Clone it, run one command, and you have a full-featured API client: collections and folders, environments and globals, OAuth2/JWT/Digest auth, pre-request and test scripts, a collection runner with CSV/JSON data-driven runs, a mock server, a cookie jar, and one-click cURL — all working offline, all stored as plain JSON files you fully own. Import your existing Postman collections and environments and you're up and running in minutes.
 
 No npm install, no Docker, no sign-up, no rate limits, no paywalled "team" features. MIT licensed — use it, fork it, ship it.
 
 ## Running it
 
-Salvo needs its local server — it's what reads/writes `data/` and proxies outbound requests.
+Volley needs its local server — it's what reads/writes `data/` and proxies outbound requests.
 
 ```bash
 node server.js
@@ -24,10 +24,10 @@ node server.js --port=3000
 
 ### Sharing `data/` (local-network sync)
 
-By default Salvo reads/writes `data/` next to `server.js`. Pass `--data-dir=<path>` (or set `SALVO_DATA_DIR`) to point it at a different folder — e.g. a Dropbox/Google Drive folder, a network share, or a separate git repo — so multiple machines or teammates can work from the same collections, environments, and history:
+By default Volley reads/writes `data/` next to `server.js`. Pass `--data-dir=<path>` (or set `VOLLEY_DATA_DIR`) to point it at a different folder — e.g. a Dropbox/Google Drive folder, a network share, or a separate git repo — so multiple machines or teammates can work from the same collections, environments, and history:
 
 ```bash
-node server.js --data-dir=/path/to/shared/salvo-data
+node server.js --data-dir=/path/to/shared/volley-data
 ```
 
 There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save model described below, just pointed at a folder that something else (Dropbox, a sync tool, git) keeps in sync between machines. Avoid running two instances against the same `data/` at the same time, since the last save wins.
@@ -66,7 +66,7 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 
 ## Features
 
-- **Collections** — organise requests into collections and folders. Import Postman v2.x JSON, or Salvo's own export format. Right-click a request to rename, duplicate, copy its URL, move it, or delete it; right-click a collection or folder to add requests/folders, run them, edit a description, rename, export, or delete.
+- **Collections** — organise requests into collections and folders. Import Postman v2.x JSON, or Volley's own export format. Right-click a request to rename, duplicate, copy its URL, move it, or delete it; right-click a collection or folder to add requests/folders, run them, edit a description, rename, export, or delete.
 - **Sidebar search & multi-select** — filter the sidebar by request name or URL as you type. `Ctrl`/`Cmd`-click or `Shift`-click to select multiple requests, then move or delete them all at once.
 - **Drag-and-drop organization** — reorder requests and folders within a collection, move a request into a folder, or reorder collections and folders themselves by dragging their rows.
 - **Multi-tab editing** — open several requests at once in browser-style tabs above the editor; each tab keeps its own edits, response, and active sub-tab.
@@ -92,29 +92,29 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 - **Mock servers** — enable "Mock" on a request (its "Mock" tab) to define a canned status/headers/body/delay, then start the local mock server (topbar → "Mock Server") to serve every enabled mock on a chosen port. Routes are matched by method and path, with `:name` path segments matching anything (mirroring a request's `{{baseUrl}}/users/:id`-style URL).
 - **Cookie jar** — `Set-Cookie` responses are stored automatically and replayed on later requests to matching domains. View or clear stored cookies from the "Cookies" topbar button.
 - **Response viewer** — status, timing, size, collapsible JSON tree, raw body, response headers. Large JSON responses (>1MB) fall back to raw text to avoid freezing the tab.
-- **cURL** — every request shows a live curl command that updates as you edit, with one-click copy. Click **Edit** to edit the curl directly — change the method, URL, headers, or body in curl syntax and **Save** to apply it back to the request fields. **Import cURL** (under **Import ▾**) accepts one or many curl commands at once: paste a block or a whole bash script, and Salvo creates the requests for you. See [Import cURL](#import-curl).
+- **cURL** — every request shows a live curl command that updates as you edit, with one-click copy. Click **Edit** to edit the curl directly — change the method, URL, headers, or body in curl syntax and **Save** to apply it back to the request fields. **Import cURL** (under **Import ▾**) accepts one or many curl commands at once: paste a block or a whole bash script, and Volley creates the requests for you. See [Import cURL](#import-curl).
 - **Notes on params/headers** — annotate individual rows ("Dev key", "pagination cursor", etc.)
 - **Request history** — every sent request logged with method, status, and timing; click to replay
 - **Per-request tab memory** — remembers which tab (Params/Headers/Auth/Body/cURL) you last had open for each request
-- **CORS handling** — Salvo tries a direct `fetch()` first; if the browser blocks it (CORS), the request is automatically retried through the local Node server, where CORS doesn't apply. SSE and Digest Auth always go through the server.
+- **CORS handling** — Volley tries a direct `fetch()` first; if the browser blocks it (CORS), the request is automatically retried through the local Node server, where CORS doesn't apply. SSE and Digest Auth always go through the server.
 - **Server status indicator** — a dot in the topbar shows whether the local server is reachable; coordinates across browser tabs via `BroadcastChannel` so only one tab polls at a time.
 - **Color themes** — pick Dark, Light, Nord, Carnival, or Garbagefire from the topbar theme picker; your choice is remembered per device.
 - **Git sync** *(experimental, enable in Settings)* — push and pull your collections against a remote git repository. See [Git Sync](#git-sync-experimental).
 - **Log viewer** *(enable in Settings)* — a Logs button opens a live-streaming view of server output, replaying a configurable in-memory buffer of recent lines. See [Log Viewer](#log-viewer).
 - **Responsive layout** — on narrow/tablet/phone widths, the sidebar collapses behind a `☰` toggle and slides over the request panel.
-- **Export / Import** — the **Export ▾** dropdown exports everything as Salvo JSON, as Postman v2.1 (one file per collection), or as a bash-compatible cURL commands file. Individual collections can also be exported via right-click. The **Import ▾** dropdown accepts a local Salvo/Postman file, a URL, or pasted curl commands (**Import cURL**). See [Export / Import](#export--import).
+- **Export / Import** — the **Export ▾** dropdown exports everything as Volley JSON, as Postman v2.1 (one file per collection), or as a bash-compatible cURL commands file. Individual collections can also be exported via right-click. The **Import ▾** dropdown accepts a local Volley/Postman file, a URL, or pasted curl commands (**Import cURL**). See [Export / Import](#export--import).
 - **Auto-save** — every change is saved to disk automatically (debounced), with a save-status indicator in the topbar. `Ctrl+S`/`Cmd+S` still works for an explicit save.
-- **About** — click the Salvo logo/title in the topbar for an About modal with a short description and the MIT license text.
+- **About** — click the Volley logo/title in the topbar for an About modal with a short description and the MIT license text.
 
 ## Project structure
 
 ```
-salvo/
+volley/
 ├── server.js               — stdlib-only Node server: static files + API endpoints
 ├── cli.js                  — headless Collection Runner (CI/CD), see [CLI Runner](#cli-runner)
 ├── data/                   — gitignored; your collections, environments, history, and globals (plain JSON)
 ├── config/                 — gitignored; server-side config (git.json, logs.json)
-├── salvo-sync/             — gitignored; local git clone managed by Git Sync
+├── volley-sync/             — gitignored; local git clone managed by Git Sync
 ├── index.html              — markup only, no inline JS or CSS
 ├── css/
 │   ├── base.css            — reset, layout shell, form controls, buttons, tabs, spinner
@@ -134,7 +134,7 @@ salvo/
     ├── send.js             — request execution (direct fetch → proxy fallback), response parsing, SSE, OAuth2
     ├── websocket.js        — WebSocket client (ws://, wss://), relayed through the local server
     ├── mcp.js              — MCP client (Streamable HTTP and stdio transports, via req.protocol)
-    ├── collections.js      — collection/folder/request CRUD, Postman & Salvo import/export, URL import
+    ├── collections.js      — collection/folder/request CRUD, Postman & Volley import/export, URL import
     ├── modals.js           — environment & global variables modal
     ├── runner.js           — Collection Runner (run a collection/folder, CSV/JSON data files, results modal)
     ├── mock.js             — Mock Server modal (build routes from requests with mocking enabled, start/stop)
@@ -148,12 +148,12 @@ All JS files share the global scope and load in order. `state.js` must be first 
 
 ## Data storage (`data/`)
 
-`data/` is gitignored — it holds your local collections, environments, and history as plain JSON files. Each machine running Salvo has its own independent `data/` folder; there is no cloud sync and no shared state between computers. To move collections between machines, use [Export / Import](#export--import) — export on one machine and import on another. For continuous sharing, see [Sharing `data/`](#sharing-data-local-network-sync).
+`data/` is gitignored — it holds your local collections, environments, and history as plain JSON files. Each machine running Volley has its own independent `data/` folder; there is no cloud sync and no shared state between computers. To move collections between machines, use [Export / Import](#export--import) — export on one machine and import on another. For continuous sharing, see [Sharing `data/`](#sharing-data-local-network-sync).
 
 - **Collections are directories**: `data/<Collection Name>/`
 - **Requests are files**: `data/<Collection Name>/<Request Name>.json`
 - **Folders are not directories** — a request inside a Postman-style folder just has an extra `"folder": "<Folder Name>"` field; the layout on disk is always flat, one level deep.
-- **Environments, globals, history, open tabs, and cookies**: `data/_salvo/envs.json`, `data/_salvo/globals.json`, `data/_salvo/history.json`, `data/_salvo/tabs.json`, and `data/_salvo/cookies.json`
+- **Environments, globals, history, open tabs, and cookies**: `data/_volley/envs.json`, `data/_volley/globals.json`, `data/_volley/history.json`, `data/_volley/tabs.json`, and `data/_volley/cookies.json`
 
 ### Request shape
 
@@ -199,7 +199,7 @@ A form-data body's `formData` rows can be files instead of plain text values, an
   "body": {
     "type": "formdata",
     "formData": [
-      { "id": "a", "key": "name",   "value": "salvo",  "enabled": true, "type": "text" },
+      { "id": "a", "key": "name",   "value": "volley",  "enabled": true, "type": "text" },
       { "id": "b", "key": "upload", "enabled": true,   "type": "file", "fileName": "photo.png", "fileSize": 12345, "fileMimeType": "image/png", "fileData": "<base64>" }
     ]
   }
@@ -246,7 +246,7 @@ Use `{{variable}}` placeholders anywhere in a request's URL, params, headers, or
 
 ### Global variables
 
-The **Globals** entry in **Manage Env** (above your list of environments) holds variables that aren't tied to any one environment. When a `{{variable}}` placeholder isn't found in the active environment, Salvo falls back to a matching global variable before leaving it un-interpolated. Use globals for values that are the same everywhere (an API key, a shared account id) so you don't have to duplicate them into every environment.
+The **Globals** entry in **Manage Env** (above your list of environments) holds variables that aren't tied to any one environment. When a `{{variable}}` placeholder isn't found in the active environment, Volley falls back to a matching global variable before leaving it un-interpolated. Use globals for values that are the same everywhere (an API key, a shared account id) so you don't have to duplicate them into every environment.
 
 ### Saving response values as variables
 
@@ -258,16 +258,16 @@ Every params/headers/form-data/variables table has a **Bulk Edit** button above 
 
 ## Auth types
 
-Configure auth on the **Auth** tab of a request. Salvo supports:
+Configure auth on the **Auth** tab of a request. Volley supports:
 
 - **Bearer Token** — sets `Authorization: Bearer <token>`. Token field supports `{{variables}}`.
 - **Basic Auth** — sets `Authorization: Basic <base64(username:password)>`.
 - **API Key** — adds a custom header (or query param) with a key/value you choose.
-- **OAuth 2.0 — Client Credentials** — set **Access Token URL**, **Client ID**, **Client Secret**, and optionally **Scope**. Click **Get Access Token** to fetch and cache a token, or just hit Send — Salvo fetches one automatically if none is cached (or the cached one has expired).
+- **OAuth 2.0 — Client Credentials** — set **Access Token URL**, **Client ID**, **Client Secret**, and optionally **Scope**. Click **Get Access Token** to fetch and cache a token, or just hit Send — Volley fetches one automatically if none is cached (or the cached one has expired).
 - **OAuth 2.0 — Password Grant** — same as above, plus **Username**/**Password**, sent with `grant_type=password`.
-- **OAuth 2.0 — Authorization Code** — set **Authorization URL**, **Access Token URL**, **Client ID**, and (optionally, if not using PKCE) **Client Secret**. Click **Get Access Token** (or hit Send) to open the provider's login page in a popup; Salvo's local server handles the `/api/oauth/callback` redirect, exchanges the code for a token (with PKCE by default), and caches it like the other OAuth2 grants.
-- **Digest Auth** — set **Username**/**Password**. Salvo sends the request, and if the server responds with a `WWW-Authenticate: Digest` challenge, transparently retries with the computed digest response — no manual nonce handling needed.
-- **JWT Bearer (HS256)** — set a **Secret** and a JSON **payload** (e.g. `{"sub":"user123"}`). Salvo signs a fresh HS256 JWT at send time, adding `iat`/`exp` (1 hour) automatically if you don't specify them, and sends it as `Authorization: Bearer <jwt>`.
+- **OAuth 2.0 — Authorization Code** — set **Authorization URL**, **Access Token URL**, **Client ID**, and (optionally, if not using PKCE) **Client Secret**. Click **Get Access Token** (or hit Send) to open the provider's login page in a popup; Volley's local server handles the `/api/oauth/callback` redirect, exchanges the code for a token (with PKCE by default), and caches it like the other OAuth2 grants.
+- **Digest Auth** — set **Username**/**Password**. Volley sends the request, and if the server responds with a `WWW-Authenticate: Digest` challenge, transparently retries with the computed digest response — no manual nonce handling needed.
+- **JWT Bearer (HS256)** — set a **Secret** and a JSON **payload** (e.g. `{"sub":"user123"}`). Volley signs a fresh HS256 JWT at send time, adding `iat`/`exp` (1 hour) automatically if you don't specify them, and sends it as `Authorization: Bearer <jwt>`.
 
 For OAuth2, the fetched token is cached on the request (`cachedToken`/`cachedExpiry`) and reused until it expires. The resulting `Authorization: Bearer <token>` header is shown read-only under "Auto-generated" on the Headers tab (uncheck it there to omit it from the request).
 
@@ -277,11 +277,11 @@ In addition to plain HTTP, the URL scheme determines whether a request is sent n
 
 ### Server-Sent Events (SSE)
 
-No special URL scheme needed — send a request as normal (`GET` or otherwise) to an endpoint that responds with `Content-Type: text/event-stream`. Salvo detects this and switches the response panel to a live-updating event log instead of a single body: each event shows its `event`/`id`/`retry` fields, the raw `data`, and the time it was received. Click **Cancel** (shown in place of Send while connected) to close the stream.
+No special URL scheme needed — send a request as normal (`GET` or otherwise) to an endpoint that responds with `Content-Type: text/event-stream`. Volley detects this and switches the response panel to a live-updating event log instead of a single body: each event shows its `event`/`id`/`retry` fields, the raw `data`, and the time it was received. Click **Cancel** (shown in place of Send while connected) to close the stream.
 
 ### WebSocket
 
-Set the request URL to `ws://` or `wss://`. The Send button becomes **Connect** — click it to open a relayed WebSocket connection (proxied through Salvo's local server, so there's no browser CORS/origin restriction). Once connected:
+Set the request URL to `ws://` or `wss://`. The Send button becomes **Connect** — click it to open a relayed WebSocket connection (proxied through Volley's local server, so there's no browser CORS/origin restriction). Once connected:
 
 - The response panel shows a transcript of sent and received messages with timestamps.
 - A composer at the bottom lets you type a message and send it over the open connection.
@@ -291,15 +291,15 @@ Headers and auth configured on the request (e.g. a `Sec-WebSocket-Protocol` or `
 
 ### MCP (Model Context Protocol)
 
-Salvo includes a small built-in MCP client for talking to MCP servers directly from a request tab. Pick the transport from the **Protocol** dropdown in the URL bar:
+Volley includes a small built-in MCP client for talking to MCP servers directly from a request tab. Pick the transport from the **Protocol** dropdown in the URL bar:
 
 - **MCP · Streamable HTTP** — enter the server's endpoint as a normal URL (e.g. `https://mcp.deepwiki.com/mcp`). It's proxied server-side via the same mechanism as a normal request (no CORS issues).
-- **MCP · stdio** — the URL field becomes a command line (e.g. `npx -y @some/mcp-server`). Salvo spawns that command as a local child process and speaks newline-delimited JSON-RPC over its stdin/stdout.
+- **MCP · stdio** — the URL field becomes a command line (e.g. `npx -y @some/mcp-server`). Volley spawns that command as a local child process and speaks newline-delimited JSON-RPC over its stdin/stdout.
 
-Either way, click **Connect** to perform the `initialize` handshake (Salvo sends `initialize` then `notifications/initialized` automatically). Once connected:
+Either way, click **Connect** to perform the `initialize` handshake (Volley sends `initialize` then `notifications/initialized` automatically). Once connected:
 
 - The response panel shows the JSON-RPC message transcript (sent and received), plus the connected server's name/version once known.
-- A composer lets you pick a method (autocompleted from common MCP methods like `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`) and supply a JSON `params` object, then send it as a new JSON-RPC request. Salvo wraps your method/params in the full `{"jsonrpc":"2.0","id":<auto>,...}` envelope.
+- A composer lets you pick a method (autocompleted from common MCP methods like `tools/list`, `tools/call`, `resources/list`, `resources/read`, `prompts/list`, `prompts/get`) and supply a JSON `params` object, then send it as a new JSON-RPC request. Volley wraps your method/params in the full `{"jsonrpc":"2.0","id":<auto>,...}` envelope.
 - Click **Disconnect**, or close the tab, to end the session.
 
 For example, after `tools/list` shows you a tool's name and input schema, call it with `tools/call` and a params object like:
@@ -408,7 +408,7 @@ Matching is **method + path only** — incoming request headers, query strings, 
 
 ## Cookie Jar
 
-Salvo keeps a server-side cookie jar at `data/_salvo/cookies.json`. Whenever a response includes `Set-Cookie` headers, the cookies are parsed and stored automatically; on later requests, any stored cookie whose domain, path, expiry, and `Secure` flag match the request URL is sent back in the `Cookie` header — no manual copying of session cookies between requests.
+Volley keeps a server-side cookie jar at `data/_volley/cookies.json`. Whenever a response includes `Set-Cookie` headers, the cookies are parsed and stored automatically; on later requests, any stored cookie whose domain, path, expiry, and `Secure` flag match the request URL is sent back in the `Cookie` header — no manual copying of session cookies between requests.
 
 Click **Cookies** in the topbar to open the cookie jar modal, where you can see every stored cookie's name, value, domain/path, and expiry, delete individual cookies, or clear the jar entirely.
 
@@ -422,26 +422,26 @@ Opening a request from the sidebar opens it in a new tab (or focuses its existin
 
 The **Export ▾** dropdown (topbar) offers three formats:
 
-- **Salvo** — downloads `salvo-export.json` containing all collections, folders, requests, and environments. This is the format [Import](#export--import) expects for the full round-trip. History is excluded — it's local clutter, not something worth sharing.
+- **Volley** — downloads `volley-export.json` containing all collections, folders, requests, and environments. This is the format [Import](#export--import) expects for the full round-trip. History is excluded — it's local clutter, not something worth sharing.
 - **Postman v2.1** — downloads one `.postman_collection.json` file per collection (one download per collection). Useful for sharing with teammates on Postman.
-- **cURL commands** — downloads `salvo-export.sh`, a bash-compatible text file with every request rendered as a named `curl` command. `{{variable}}` placeholders are preserved as-is. Requests are grouped by collection, with folder membership noted in the name (`# Folder / Request`). This file can be pasted straight back into **Import ▾ → Import cURL** to recreate the requests.
+- **cURL commands** — downloads `volley-export.sh`, a bash-compatible text file with every request rendered as a named `curl` command. `{{variable}}` placeholders are preserved as-is. Requests are grouped by collection, with folder membership noted in the name (`# Folder / Request`). This file can be pasted straight back into **Import ▾ → Import cURL** to recreate the requests.
 
-A single collection can also be exported on its own via its right-click menu, as either a Salvo JSON file (**Export JSON**) or a Postman v2.1.0 collection (**Export as Postman**) — handy for sharing one collection without exporting everything.
+A single collection can also be exported on its own via its right-click menu, as either a Volley JSON file (**Export JSON**) or a Postman v2.1.0 collection (**Export as Postman**) — handy for sharing one collection without exporting everything.
 
 The **Import ▾** dropdown offers three ways to get data in:
 
 - **From file** — pick a local `.json` file
-- **From URL** — enter a URL; Salvo's server fetches it (so CORS and auth headers on the remote server are not an obstacle) and feeds the result into the same import pipeline
+- **From URL** — enter a URL; Volley's server fetches it (so CORS and auth headers on the remote server are not an obstacle) and feeds the result into the same import pipeline
 - **Import cURL** — paste curl commands directly; see [Import cURL](#import-curl) below
 
 From file and From URL accept:
-- A Salvo export (`{ "cols": [...], "envs": [...] }`) — opens an **import preview modal** before anything is applied (see below)
+- A Volley export (`{ "cols": [...], "envs": [...] }`) — opens an **import preview modal** before anything is applied (see below)
 - A Postman v2.x collection — added as a new collection; any collection-level Postman variables are imported as an environment named after the collection
 - A Postman environment export — merged into a matching (or newly created) environment by name; new vars are added and changed vars are updated
 
-### Salvo import preview
+### Volley import preview
 
-When importing a Salvo export, a preview modal lists every request that would change, grouped by collection, before anything is written:
+When importing a Volley export, a preview modal lists every request that would change, grouped by collection, before anything is written:
 
 - **New** — the request doesn't exist locally; will be added
 - **Changed** — the request exists but differs from the imported version; will replace the local copy
@@ -472,13 +472,13 @@ Environment variables in the export are always synced automatically (new vars ad
 
 **Merging** — if the chosen collection already exists, the imported requests are added to it. If not, a new collection is created at the top of the sidebar.
 
-**Shell variables** (`$TOKEN`, `${BASE_URL}`) appear as literals in the imported request — they're not resolved. Replace them with Salvo `{{variables}}` or literal values after import.
+**Shell variables** (`$TOKEN`, `${BASE_URL}`) appear as literals in the imported request — they're not resolved. Replace them with Volley `{{variables}}` or literal values after import.
 
 The **Edit** button on the cURL tab of any imported request lets you edit the curl directly and save it back to the request fields — so importing a curl is just the starting point, not a one-time migration.
 
 ## Git Sync (experimental)
 
-Git Sync lets you push and pull your collections against a remote git repository you own — a private GitHub repo, a self-hosted Gitea instance, anything with an HTTPS git remote. Your `data/` folder is never itself a git repo; instead Salvo maintains a separate local clone (`salvo-sync/`) as a bridge.
+Git Sync lets you push and pull your collections against a remote git repository you own — a private GitHub repo, a self-hosted Gitea instance, anything with an HTTPS git remote. Your `data/` folder is never itself a git repo; instead Volley maintains a separate local clone (`volley-sync/`) as a bridge.
 
 Enable it first in **⚙ Settings → Experimental → Git sync**, then click the **Git** button that appears in the topbar.
 
@@ -487,24 +487,24 @@ Enable it first in **⚙ Settings → Experimental → Git sync**, then click th
 1. **Remote URL** — the HTTPS URL of your collections repo (e.g. `https://github.com/you/my-collections`).
 2. **Personal Access Token** — required for private repos and for push. For GitHub fine-grained PATs: grant **Contents (read & write)** and **Metadata (read)**. Leave blank for a public read-only repo.
 3. **Branch** — defaults to `main`.
-4. Click **Save**, then **Connect** to clone the remote into `salvo-sync/` and populate `data/` from it.
+4. Click **Save**, then **Connect** to clone the remote into `volley-sync/` and populate `data/` from it.
 
 ### Push / Pull
 
-- **Push** — copies `data/` into `salvo-sync/`, commits, and pushes to the remote. Run this after making changes you want to share.
-- **Pull** — fetches the remote and compares it against `salvo-sync/`'s last-known state. Changes that don't conflict with local edits are applied automatically; conflicting files go to a **conflict resolution modal** where you choose to keep local or take remote for each file, then click **Apply**.
+- **Push** — copies `data/` into `volley-sync/`, commits, and pushes to the remote. Run this after making changes you want to share.
+- **Pull** — fetches the remote and compares it against `volley-sync/`'s last-known state. Changes that don't conflict with local edits are applied automatically; conflicting files go to a **conflict resolution modal** where you choose to keep local or take remote for each file, then click **Apply**.
 
-The files `_salvo/history.json`, `_salvo/tabs.json`, and `_salvo/cookies.json` are excluded from sync — they're ephemeral local state that doesn't belong in a shared repo.
+The files `_volley/history.json`, `_volley/tabs.json`, and `_volley/cookies.json` are excluded from sync — they're ephemeral local state that doesn't belong in a shared repo.
 
 ### Re-clone
 
 If your local `data/` gets into a bad state, **Re-clone** (the same Connect button when already connected) wipes `data/` and repopulates it from the remote. Push any unsaved work first.
 
-If the remote repo contains a single Salvo export file (`{ "cols": [...] }`), Re-clone detects this and expands it into the normal directory structure automatically — so pointing Salvo at an existing export repo works out of the box.
+If the remote repo contains a single Volley export file (`{ "cols": [...] }`), Re-clone detects this and expands it into the normal directory structure automatically — so pointing Volley at an existing export repo works out of the box.
 
 ### Auto-sync
 
-Enable **Auto-sync** in the Git modal and set an interval (default 5 minutes). Salvo will push then pull on that schedule. If the pull reveals conflicts with remote changes, a notification appears prompting you to open the Git modal to resolve them. Cross-tab coordination via `localStorage` ensures only one open browser tab syncs per interval.
+Enable **Auto-sync** in the Git modal and set an interval (default 5 minutes). Volley will push then pull on that schedule. If the pull reveals conflicts with remote changes, a notification appears prompting you to open the Git modal to resolve them. Cross-tab coordination via `localStorage` ensures only one open browser tab syncs per interval.
 
 ## Log Viewer
 

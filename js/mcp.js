@@ -1,5 +1,5 @@
 // ─── MCP (Model Context Protocol) ────────────────────────────────────────────
-// Salvo includes a small built-in MCP client for two transports, selected by
+// Volley includes a small built-in MCP client for two transports, selected by
 // req.protocol:
 //
 // - 'mcp-http'  -- Streamable HTTP transport. req.url is a normal
@@ -8,7 +8,7 @@
 //   response header (if any) is captured and replayed on subsequent
 //   requests, and the negotiated `protocolVersion` is sent back as
 //   `MCP-Protocol-Version`.
-// - 'mcp-stdio' -- req.url holds a shell command line; Salvo spawns it as a
+// - 'mcp-stdio' -- req.url holds a shell command line; Volley spawns it as a
 //   local child process via /api/mcp-stdio (see server.js) and speaks
 //   newline-delimited JSON-RPC over its stdin/stdout.
 //
@@ -179,7 +179,7 @@ async function sendMcpInitialize(tab) {
     params: {
       protocolVersion: MCP_PROTOCOL_VERSION,
       capabilities:    {},
-      clientInfo:      { name: 'Salvo', version: '1.0' },
+      clientInfo:      { name: 'Volley', version: '1.0' },
     },
   });
 }
@@ -217,14 +217,14 @@ async function sendMcpHttp(tab, msg) {
       body:    JSON.stringify({ url: endpoint, method: 'POST', headers: reqHeaders, bodyKind: 'raw', body: JSON.stringify(msg) }),
     });
 
-    if (proxyRes.headers.get('x-salvo-stream') === 'error') {
+    if (proxyRes.headers.get('x-volley-stream') === 'error') {
       const data = await proxyRes.json();
       throw new Error(data.error);
     }
 
-    const status = Number(proxyRes.headers.get('x-salvo-upstream-status')) || 0;
+    const status = Number(proxyRes.headers.get('x-volley-upstream-status')) || 0;
     let respHeaders = {};
-    try { respHeaders = JSON.parse(atob(proxyRes.headers.get('x-salvo-upstream-headers') || '')) || {}; } catch {}
+    try { respHeaders = JSON.parse(atob(proxyRes.headers.get('x-volley-upstream-headers') || '')) || {}; } catch {}
 
     if (respHeaders['mcp-session-id']) tab.resp.sessionId = respHeaders['mcp-session-id'];
 

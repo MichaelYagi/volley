@@ -573,7 +573,7 @@ function cookieMatchesClient(cookie, urlObj) {
   return true;
 }
 
-// Cookie header the server will append from the cookie jar (data/_salvo/cookies.json)
+// Cookie header the server will append from the cookie jar (data/_volley/cookies.json)
 // for this request's domain/path — see _cookieJar in js/modals.js.
 function computedCookieHeader(req) {
   if (!_cookieJar.length) return [];
@@ -1051,7 +1051,7 @@ function authHTML(a) {
       <input value="${esc(a.redirectUri)}" oninput="authSet('redirectUri',this.value);showVarSuggest(this)"
              onkeydown="varSuggestKeydown(this,event)" onblur="varSuggestBlur()"
              placeholder="${esc(defaultRedirect)}" style="width:100%;font-family:monospace;margin-bottom:8px">
-      <p class="muted">Register <code>${esc(defaultRedirect)}</code> as an allowed redirect URI with your OAuth provider, or set a custom one above (e.g. if Salvo runs on a different port).</p>
+      <p class="muted">Register <code>${esc(defaultRedirect)}</code> as an allowed redirect URI with your OAuth provider, or set a custom one above (e.g. if Volley runs on a different port).</p>
       <div class="two-col">
         <div>
           <label style="${AUTH_LABEL_STYLE}">Client ID</label>
@@ -1096,7 +1096,7 @@ function authHTML(a) {
                  onkeydown="varSuggestKeydown(this,event)" onblur="varSuggestBlur()" style="width:100%">
         </div>
       </div>
-      <p class="muted">Salvo automatically responds to the server's digest challenge.</p>`;
+      <p class="muted">Volley automatically responds to the server's digest challenge.</p>`;
   }
 
   if (a.type === 'jwt') {
@@ -1261,7 +1261,7 @@ function scriptSet(field, v) {
 // ─── Docs & Comments ────────────────────────────────────────────────────────────
 
 function docsHTML(req) {
-  const author = localStorage.getItem('salvo_comment_author') || '';
+  const author = localStorage.getItem('volley_comment_author') || '';
 
   let html = `
     <div class="docs-editor">
@@ -1327,7 +1327,7 @@ function docsSetDescription(v) {
 }
 
 function saveCommentAuthor(v) {
-  localStorage.setItem('salvo_comment_author', v);
+  localStorage.setItem('volley_comment_author', v);
 }
 
 function addComment() {

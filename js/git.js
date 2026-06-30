@@ -292,7 +292,7 @@ function gitIntervalMs() {
 
 async function runGitAutoSync() {
   // Coordinate across tabs — only one tab syncs per interval
-  const key  = 'salvo-last-git-sync';
+  const key  = 'volley-last-git-sync';
   const ms   = gitIntervalMs();
   const last = parseInt(localStorage.getItem(key) || '0', 10);
   if (Date.now() - last < ms - 10000) {

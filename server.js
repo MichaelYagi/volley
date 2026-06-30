@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
-// Salvo dev server — static file serving + a tiny JSON file API for the
+// Volley dev server — static file serving + a tiny JSON file API for the
 // data/ directory (collections, environments, history). No dependencies.
 
 const http   = require('http');
@@ -33,20 +33,20 @@ function getCliPort() {
 const ROOT      = __dirname;
 // --data-dir lets data/ point at a synced/shared folder (Dropbox, a git repo, a
 // network share, ...) so multiple machines/users can work from the same data.
-const DATA_DIR  = path.resolve(getCliArg('data-dir') || process.env.SALVO_DATA_DIR || path.join(ROOT, 'data'));
-const SALVO_DIR = path.join(DATA_DIR, '_salvo');
+const DATA_DIR  = path.resolve(getCliArg('data-dir') || process.env.VOLLEY_DATA_DIR || path.join(ROOT, 'data'));
+const VOLLEY_DIR = path.join(DATA_DIR, '_volley');
 const PORT      = getCliPort() || process.env.PORT || 5874;
-const LOG_DIR   = process.env.SALVO_LOG_DIR || path.join(ROOT, 'logs');
-const LOG_FILE  = path.join(LOG_DIR, 'salvo.log');
+const LOG_DIR   = process.env.VOLLEY_LOG_DIR || path.join(ROOT, 'logs');
+const LOG_FILE  = path.join(LOG_DIR, 'volley.log');
 
 // Git sync
 const CONFIG_DIR      = path.join(ROOT, 'config');
 const GIT_CONFIG_FILE = path.join(CONFIG_DIR, 'git.json');
 const LOG_CONFIG_FILE = path.join(CONFIG_DIR, 'logs.json');
-const SYNC_DIR        = path.join(ROOT, 'salvo-sync');
+const SYNC_DIR        = path.join(ROOT, 'volley-sync');
 
 // ─── Logging ────────────────────────────────────────────────────────────────────
-// Writes to the CLI (console), appends to logs/salvo.log (gitignored),
+// Writes to the CLI (console), appends to logs/volley.log (gitignored),
 // keeps an in-memory ring buffer, and broadcasts to any open SSE log clients.
 
 let _logBufferSize = 500;
@@ -100,18 +100,18 @@ function uniqueName(base, used) {
   return name;
 }
 
-// ─── Cookie jar (data/_salvo/cookies.json) ──────────────────────────────────────
+// ─── Cookie jar (data/_volley/cookies.json) ──────────────────────────────────────
 // Persisted as a flat array of { domain, path, name, value, expires, secure }.
 // `expires` is a ms-epoch timestamp or null for session cookies.
 
-const COOKIES_FILE = path.join(SALVO_DIR, 'cookies.json');
+const COOKIES_FILE = path.join(VOLLEY_DIR, 'cookies.json');
 
 function loadCookies() {
   try { return JSON.parse(fs.readFileSync(COOKIES_FILE, 'utf8')); } catch { return []; }
 }
 
 function saveCookies(jar) {
-  fs.mkdirSync(SALVO_DIR, { recursive: true });
+  fs.mkdirSync(VOLLEY_DIR, { recursive: true });
   fs.writeFileSync(COOKIES_FILE, JSON.stringify(jar, null, 2));
 }
 
@@ -243,7 +243,7 @@ function buildDigestHeader({ username, password }, method, uri, { realm, nonce, 
 
 // ─── WebSocket relay (RFC 6455) ─────────────────────────────────────────────────
 // Browsers can't open ws(s):// connections to arbitrary hosts with custom
-// headers (auth, cookies, ...) directly from the page, so Salvo relays them:
+// headers (auth, cookies, ...) directly from the page, so Volley relays them:
 // the page opens a WebSocket to /api/ws-proxy, sends a single JSON "connect"
 // control message ({ url, headers }), and from then on raw frames are
 // forwarded 1:1 between the page and the upstream target. Frames *from* the
@@ -259,8 +259,8 @@ function wsAcceptKey(key) {
 const WS_OP = { CONTINUATION: 0x0, TEXT: 0x1, BINARY: 0x2, CLOSE: 0x8, PING: 0x9, PONG: 0xA };
 
 // Encodes a single, unfragmented WebSocket frame. `masked` must be true for
-// client-to-server frames (Salvo -> upstream) and false for server-to-client
-// frames (Salvo -> browser), per RFC 6455.
+// client-to-server frames (Volley -> upstream) and false for server-to-client
+// frames (Volley -> browser), per RFC 6455.
 function encodeWsFrame(opcode, payload, masked) {
   payload = Buffer.isBuffer(payload) ? payload : Buffer.from(payload);
   const len = payload.length;
@@ -433,13 +433,13 @@ function byOrder(a, b) {
 }
 
 // ─── Build {cols, envs, hist} from a flat list of {path, content} files ───────
-// `path` looks like "<Collection>/<Request>.json" or "_salvo/envs.json", mirroring
+// `path` looks like "<Collection>/<Request>.json" or "_volley/envs.json", mirroring
 // the on-disk layout of data/. Used by both loadData() and the zip/folder import.
 //
 // Two extra files carry ordering info that can't live on a request:
 //  - "<Collection>/_meta.json"  -> { folders: [<folder names in order>] }, also
 //    used to persist folders that have no requests in them (and thus no files).
-//  - "_salvo/colOrder.json"     -> [<collection dir names in order>]
+//  - "_volley/colOrder.json"     -> [<collection dir names in order>]
 function buildColsFromFiles(files) {
   const colsMap = new Map();
   const folderOrders = new Map(); // dir -> [folder names]
@@ -451,7 +451,7 @@ function buildColsFromFiles(files) {
     const [dir, fileName] = parts;
     if (!fileName.toLowerCase().endsWith('.json')) continue;
 
-    if (dir === '_salvo') {
+    if (dir === '_volley') {
       if (fileName === 'envs.json')    { try { envs = JSON.parse(content); } catch {} }
       if (fileName === 'history.json') { try { hist = JSON.parse(content); } catch {} }
       if (fileName === 'colOrder.json') { try { colOrder = JSON.parse(content); } catch {} }
@@ -559,10 +559,10 @@ function loadData() {
   const activeEnv = Array.isArray(envs) ? 'default' : (envs?.activeEnv || 'default');
 
   let tabsData = {};
-  try { tabsData = JSON.parse(fs.readFileSync(path.join(SALVO_DIR, 'tabs.json'), 'utf8')); } catch {}
+  try { tabsData = JSON.parse(fs.readFileSync(path.join(VOLLEY_DIR, 'tabs.json'), 'utf8')); } catch {}
 
   let globals = [];
-  try { globals = JSON.parse(fs.readFileSync(path.join(SALVO_DIR, 'globals.json'), 'utf8')); } catch {}
+  try { globals = JSON.parse(fs.readFileSync(path.join(VOLLEY_DIR, 'globals.json'), 'utf8')); } catch {}
 
   return {
     cols,
@@ -590,7 +590,7 @@ function saveData(payload) {
   // Remove collection directories that no longer exist
   const keepDirs = new Set(cols.map(c => sanitizeName(c.name)));
   for (const entry of fs.readdirSync(DATA_DIR, { withFileTypes: true })) {
-    if (!entry.isDirectory() || entry.name === '_salvo') continue;
+    if (!entry.isDirectory() || entry.name === '_volley') continue;
     if (!keepDirs.has(entry.name)) fs.rmSync(path.join(DATA_DIR, entry.name), { recursive: true, force: true });
   }
 
@@ -620,19 +620,19 @@ function saveData(payload) {
       JSON.stringify({ folders: (col.folders || []).map(f => f.name) }, null, 2));
   }
 
-  fs.mkdirSync(SALVO_DIR, { recursive: true });
-  fs.writeFileSync(path.join(SALVO_DIR, 'envs.json'),     JSON.stringify({ activeEnv, list: envs }, null, 2));
-  fs.writeFileSync(path.join(SALVO_DIR, 'globals.json'),  JSON.stringify(globals, null, 2));
-  fs.writeFileSync(path.join(SALVO_DIR, 'history.json'),  JSON.stringify(hist.slice(-200), null, 2));
-  fs.writeFileSync(path.join(SALVO_DIR, 'tabs.json'),     JSON.stringify({ openTabs, activeIndex }, null, 2));
-  fs.writeFileSync(path.join(SALVO_DIR, 'colOrder.json'), JSON.stringify(cols.map(c => sanitizeName(c.name)), null, 2));
+  fs.mkdirSync(VOLLEY_DIR, { recursive: true });
+  fs.writeFileSync(path.join(VOLLEY_DIR, 'envs.json'),     JSON.stringify({ activeEnv, list: envs }, null, 2));
+  fs.writeFileSync(path.join(VOLLEY_DIR, 'globals.json'),  JSON.stringify(globals, null, 2));
+  fs.writeFileSync(path.join(VOLLEY_DIR, 'history.json'),  JSON.stringify(hist.slice(-200), null, 2));
+  fs.writeFileSync(path.join(VOLLEY_DIR, 'tabs.json'),     JSON.stringify({ openTabs, activeIndex }, null, 2));
+  fs.writeFileSync(path.join(VOLLEY_DIR, 'colOrder.json'), JSON.stringify(cols.map(c => sanitizeName(c.name)), null, 2));
 }
 
 // ─── Mock server ────────────────────────────────────────────────────────────────
 // A second, optional HTTP server that serves canned responses for requests
 // whose `mock.enabled` is true. Routes are { method, path, status, headers,
 // body, delay }, where `path` segments starting with `:` match any value
-// (mirroring Salvo's `:name` path variables).
+// (mirroring Volley's `:name` path variables).
 
 let mockServer = null;
 let mockState  = { port: null, routes: [] };
@@ -675,7 +675,7 @@ function gitRun(args, cwd) {
   });
 }
 
-const SYNC_EXCLUDES = new Set(['_salvo/history.json', '_salvo/tabs.json', '_salvo/cookies.json']);
+const SYNC_EXCLUDES = new Set(['_volley/history.json', '_volley/tabs.json', '_volley/cookies.json']);
 
 function listJsonFiles(dir) {
   const results = [];
@@ -885,7 +885,7 @@ const server = http.createServer((req, res) => {
   // via postMessage and closes itself.
   if (u.pathname === '/api/oauth/callback' && req.method === 'GET') {
     const payload = {
-      source: 'salvo-oauth',
+      source: 'volley-oauth',
       code:  u.searchParams.get('code'),
       state: u.searchParams.get('state'),
       error: u.searchParams.get('error'),
@@ -1025,7 +1025,7 @@ const server = http.createServer((req, res) => {
 
   // Streaming variant of /api/proxy for SSE (Server-Sent Events). Streams the
   // upstream response body back as it arrives via chunked transfer-encoding;
-  // status/statusText/headers are passed via X-Salvo-* response headers since
+  // status/statusText/headers are passed via X-Volley-* response headers since
   // the body itself carries the raw event stream. js/send.js's connectSSE()
   // parses the stream incrementally.
   if (u.pathname === '/api/proxy-stream' && req.method === 'POST') {
@@ -1080,10 +1080,10 @@ const server = http.createServer((req, res) => {
 
         res.writeHead(200, {
           'Content-Type':               'text/event-stream; charset=utf-8',
-          'X-Salvo-Stream':             'ok',
-          'X-Salvo-Upstream-Status':     String(upstream.status),
-          'X-Salvo-Upstream-Statustext': encodeURIComponent(upstream.statusText || ''),
-          'X-Salvo-Upstream-Headers':    Buffer.from(JSON.stringify(respHeaders)).toString('base64'),
+          'X-Volley-Stream':             'ok',
+          'X-Volley-Upstream-Status':     String(upstream.status),
+          'X-Volley-Upstream-Statustext': encodeURIComponent(upstream.statusText || ''),
+          'X-Volley-Upstream-Headers':    Buffer.from(JSON.stringify(respHeaders)).toString('base64'),
         });
 
         if (!upstream.body) { res.end(); return; }
@@ -1101,7 +1101,7 @@ const server = http.createServer((req, res) => {
         res.end();
       } catch (err) {
         log('ERROR', `proxy-stream ${method} ${url} failed: ${err.message}`);
-        res.writeHead(200, { 'Content-Type': 'application/json', 'X-Salvo-Stream': 'error' });
+        res.writeHead(200, { 'Content-Type': 'application/json', 'X-Volley-Stream': 'error' });
         res.end(JSON.stringify({ ok: false, error: err.message }));
       }
     });
@@ -1212,10 +1212,10 @@ const server = http.createServer((req, res) => {
         await gitRun(['clone', authUrl, SYNC_DIR], ROOT);
         // Remove PAT from stored remote URL
         await gitRun(['remote', 'set-url', 'origin', cfg.remoteUrl], SYNC_DIR);
-        await gitRun(['config', 'user.email', 'salvo@local'], SYNC_DIR);
-        await gitRun(['config', 'user.name', 'Salvo Sync'], SYNC_DIR);
+        await gitRun(['config', 'user.email', 'volley@local'], SYNC_DIR);
+        await gitRun(['config', 'user.name', 'Volley Sync'], SYNC_DIR);
         // Populate data/ from the cloned repo.
-        // Salvo export files ({ cols: [...] }) are expanded via saveData so they
+        // Volley export files ({ cols: [...] }) are expanded via saveData so they
         // land in the correct directory structure. All other .json files are copied as-is.
         const syncFiles = listJsonFiles(SYNC_DIR);
         let filesCopied = 0;
@@ -1229,7 +1229,7 @@ const server = http.createServer((req, res) => {
             saveData(parsed);
             filesCopied += (parsed.cols || []).length;
             expandedExport = true;
-            log('INFO', `git init: expanded Salvo export ${rel} (${parsed.cols.length} collection(s))`);
+            log('INFO', `git init: expanded Volley export ${rel} (${parsed.cols.length} collection(s))`);
           } else {
             const dest = path.join(DATA_DIR, rel);
             fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -1237,7 +1237,7 @@ const server = http.createServer((req, res) => {
             filesCopied++;
           }
         }
-        // If we expanded an export, sync the new data/ layout back into salvo-sync/
+        // If we expanded an export, sync the new data/ layout back into volley-sync/
         // so getLocalChanges returns 0 (no phantom local changes after re-clone).
         if (expandedExport) syncDataToRepo(DATA_DIR, SYNC_DIR);
         writeGitCfg({ ...cfg, lastSync: new Date().toISOString() });
@@ -1303,7 +1303,7 @@ const server = http.createServer((req, res) => {
           const [action, ...rest] = line.split('\t');
           return { path: rest[0], action: action.trim() };
         });
-        // Detect local edits (data/ vs salvo-sync/ HEAD)
+        // Detect local edits (data/ vs volley-sync/ HEAD)
         const localDiff = getLocalChanges(DATA_DIR, SYNC_DIR);
         const localModified = new Set([...localDiff.added, ...localDiff.modified, ...localDiff.deleted]);
         const autoApply = [], conflicts = [];
@@ -1328,7 +1328,7 @@ const server = http.createServer((req, res) => {
             fs.writeFileSync(dest, item.remoteContent);
           }
         }
-        // Advance salvo-sync/ HEAD if no conflicts
+        // Advance volley-sync/ HEAD if no conflicts
         if (conflicts.length === 0) {
           await gitRun(['reset', '--hard', 'FETCH_HEAD'], SYNC_DIR);
           writeGitCfg({ ...cfg, lastSync: new Date().toISOString() });
@@ -1513,7 +1513,7 @@ function handleWsProxyUpgrade(socket, head, key) {
 // MCP servers using the stdio transport are local child processes, so the
 // browser can't talk to them directly: the page opens a WebSocket to
 // /api/mcp-stdio, sends one JSON "connect" control message
-// ({ command, args, env, cwd }), and Salvo spawns that process. From then on,
+// ({ command, args, env, cwd }), and Volley spawns that process. From then on,
 // each WS text frame from the browser is written to the child's stdin as a
 // line of JSON-RPC; each newline-delimited line on the child's stdout is
 // wrapped as a JSON control message ({ type: 'message', data }) and sent to
@@ -1663,7 +1663,7 @@ async function shutdown(signal) {
 
 if (require.main === module) {
   server.listen(PORT, () => {
-    log('INFO', `Salvo running at http://localhost:${PORT}`);
+    log('INFO', `Volley running at http://localhost:${PORT}`);
     for (const addr of lanAddresses()) log('INFO', `  also available at http://${addr}:${PORT}`);
   });
   process.on('SIGINT',  () => shutdown('SIGINT'));

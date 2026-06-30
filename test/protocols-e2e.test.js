@@ -15,8 +15,8 @@ const path = require('path');
 const http = require('http');
 const vm = require('vm');
 
-const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'salvo-test-proto-'));
-process.env.SALVO_DATA_DIR = DATA_DIR;
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'volley-test-proto-'));
+process.env.VOLLEY_DATA_DIR = DATA_DIR;
 
 const { server } = require('../server.js');
 
@@ -250,8 +250,8 @@ test('end-to-end SSE: /api/proxy-stream + extractSseEvents reconstruct events fr
       body: JSON.stringify({ url: upstreamUrl, method: 'GET', headers: {} }),
     });
 
-    assert.notStrictEqual(proxyRes.headers.get('x-salvo-stream'), 'error');
-    const respHeaders = JSON.parse(sandbox.atob(proxyRes.headers.get('x-salvo-upstream-headers') || ''));
+    assert.notStrictEqual(proxyRes.headers.get('x-volley-stream'), 'error');
+    const respHeaders = JSON.parse(sandbox.atob(proxyRes.headers.get('x-volley-upstream-headers') || ''));
     assert.match(respHeaders['content-type'], /text\/event-stream/);
 
     const reader  = proxyRes.body.getReader();

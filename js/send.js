@@ -96,15 +96,15 @@ async function sendRequest() {
         signal:  tab.abortCtrl.signal,
       });
 
-      if (proxyRes.headers.get('x-salvo-stream') === 'error') {
+      if (proxyRes.headers.get('x-volley-stream') === 'error') {
         const data = await proxyRes.json();
         throw new Error(data.error);
       }
 
-      status      = Number(proxyRes.headers.get('x-salvo-upstream-status')) || 0;
-      statusText  = decodeURIComponent(proxyRes.headers.get('x-salvo-upstream-statustext') || '');
+      status      = Number(proxyRes.headers.get('x-volley-upstream-status')) || 0;
+      statusText  = decodeURIComponent(proxyRes.headers.get('x-volley-upstream-statustext') || '');
       respHeaders = {};
-      try { respHeaders = JSON.parse(atob(proxyRes.headers.get('x-salvo-upstream-headers') || '')) || {}; } catch {}
+      try { respHeaders = JSON.parse(atob(proxyRes.headers.get('x-volley-upstream-headers') || '')) || {}; } catch {}
       isSSE       = (respHeaders['content-type'] || '').includes('text/event-stream');
 
       if (isSSE) {
@@ -463,7 +463,7 @@ async function startAuthCodeFlow(auth) {
   }
 
   const authUrl = `${interp(auth.authorizationUrl)}?${params.toString()}`;
-  const popup = window.open(authUrl, 'salvo-oauth', 'width=500,height=700');
+  const popup = window.open(authUrl, 'volley-oauth', 'width=500,height=700');
   if (!popup) throw new Error('Popup blocked — please allow popups for this site');
 
   const code = await new Promise((resolve, reject) => {
@@ -471,7 +471,7 @@ async function startAuthCodeFlow(auth) {
       if (popup.closed) { cleanup(); reject(new Error('Authorization window closed')); }
     }, 500);
     function onMessage(e) {
-      if (!e.data || e.data.source !== 'salvo-oauth') return;
+      if (!e.data || e.data.source !== 'volley-oauth') return;
       cleanup();
       if (e.data.state !== state) { reject(new Error('OAuth state mismatch')); return; }
       if (e.data.error) { reject(new Error(e.data.error)); return; }
@@ -633,7 +633,7 @@ async function parseResponse(data, elapsed) {
 // ─── Pre-request / test script sandbox (`pm` API) ─────────────────────────────
 
 // Run user script code with a `pm` global. Uses `new Function` — acceptable
-// given Salvo's local-first, single-user trust model (the script author is
+// given Volley's local-first, single-user trust model (the script author is
 // the same person running the server).
 function runScript(code, pm) {
   const fn = new Function('pm', code);

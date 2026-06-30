@@ -10,8 +10,8 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 
-const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'salvo-test-http-'));
-process.env.SALVO_DATA_DIR = DATA_DIR;
+const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'volley-test-http-'));
+process.env.VOLLEY_DATA_DIR = DATA_DIR;
 
 const { server, parseDigestChallenge, wsAcceptKey, encodeWsFrame, WsFrameDecoder, WS_OP } = require('../server.js');
 
@@ -416,7 +416,7 @@ test('GET /api/oauth/callback posts code/state back to the opener and closes its
   assert.match(res.headers.get('content-type'), /text\/html/);
 
   const html = await res.text();
-  assert.match(html, /"source":"salvo-oauth"/);
+  assert.match(html, /"source":"volley-oauth"/);
   assert.match(html, /"code":"abc123"/);
   assert.match(html, /"state":"xyz"/);
   assert.match(html, /window\.close\(\)/);
@@ -453,10 +453,10 @@ test('POST /api/proxy-stream streams an SSE response and forwards upstream statu
       body: JSON.stringify({ url: upstreamUrl, method: 'GET', headers: {} }),
     });
     assert.strictEqual(res.status, 200);
-    assert.strictEqual(res.headers.get('x-salvo-stream'), 'ok');
-    assert.strictEqual(res.headers.get('x-salvo-upstream-status'), '200');
+    assert.strictEqual(res.headers.get('x-volley-stream'), 'ok');
+    assert.strictEqual(res.headers.get('x-volley-upstream-status'), '200');
 
-    const upstreamHeaders = JSON.parse(Buffer.from(res.headers.get('x-salvo-upstream-headers'), 'base64').toString('utf8'));
+    const upstreamHeaders = JSON.parse(Buffer.from(res.headers.get('x-volley-upstream-headers'), 'base64').toString('utf8'));
     assert.strictEqual(upstreamHeaders['x-test'], 'yes');
 
     const text = await res.text();
@@ -474,7 +474,7 @@ test('POST /api/proxy-stream returns an error payload when the upstream is unrea
     body: JSON.stringify({ url: 'http://127.0.0.1:1/', method: 'GET', headers: {} }),
   });
   assert.strictEqual(res.status, 200);
-  assert.strictEqual(res.headers.get('x-salvo-stream'), 'error');
+  assert.strictEqual(res.headers.get('x-volley-stream'), 'error');
 
   const data = await res.json();
   assert.strictEqual(data.ok, false);
@@ -523,7 +523,7 @@ test('POST /api/proxy-stream transparently answers a Digest auth challenge', asy
         digestAuth: creds,
       }),
     });
-    assert.strictEqual(res.headers.get('x-salvo-upstream-status'), '200');
+    assert.strictEqual(res.headers.get('x-volley-upstream-status'), '200');
     assert.strictEqual(await res.text(), 'authenticated');
   } finally {
     upstream.close();

@@ -12,12 +12,12 @@ const THEMES = [
 ];
 
 function getTheme() {
-  return localStorage.getItem('salvo-theme') || 'dark';
+  return localStorage.getItem('volley-theme') || 'dark';
 }
 
 function applyTheme(id) {
   document.documentElement.setAttribute('data-theme', id);
-  localStorage.setItem('salvo-theme', id);
+  localStorage.setItem('volley-theme', id);
   renderThemePicker();
 }
 

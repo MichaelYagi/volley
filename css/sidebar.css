@@ -105,6 +105,29 @@
 }
 
 .col-add { padding: 1px 5px; font-size: 15px; color: var(--text-muted); line-height: 1; }
+
+.col-menu-btn {
+  visibility: hidden;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  width: 22px;
+  height: 22px;
+  font-size: 14px;
+  cursor: pointer;
+  flex-shrink: 0;
+  line-height: 1;
+  padding: 0;
+}
+.col-menu-btn:hover { background: var(--bg-input); color: var(--text); }
+.col-header:hover .col-menu-btn,
+.folder-header:hover .col-menu-btn { visibility: visible; }
+
+/* Always show on touch devices where hover isn't available */
+@media (hover: none) {
+  .col-menu-btn { visibility: visible; }
+}
 .col-body { padding-left: 10px; }
 
 /* ─── Folder Headers ────────────────────────────────────────────────────────── */

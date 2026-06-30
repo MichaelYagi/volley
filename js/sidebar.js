@@ -152,6 +152,7 @@ function colHTML(col) {
           ondrop="onColHeaderDrop(event,'${col.id}')">
         <span class="col-arrow ${open ? 'open' : ''}">&#9654;</span>
         <span class="col-name">${esc(col.name)}</span>
+        <button class="col-menu-btn" onclick="event.stopPropagation();colCtx(event,'${col.id}')" title="Collection options">&#8942;</button>
         <button class="col-add" onclick="event.stopPropagation();addReq('${col.id}')" title="New request">+</button>
       </div>`;
 
@@ -179,6 +180,7 @@ function folderHTML(colId, folder) {
       <span class="col-arrow ${open ? 'open' : ''}">&#9654;</span>
       <span style="font-size:13px">&#128193;</span>
       <span class="folder-name">${esc(folder.name)}</span>
+      <button class="col-menu-btn" onclick="event.stopPropagation();folderCtx(event,'${colId}','${folder.id}')" title="Folder options">&#8942;</button>
       <button class="col-add" onclick="event.stopPropagation();addReq('${colId}','${folder.id}')">+</button>
     </div>`;
 

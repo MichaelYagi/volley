@@ -79,7 +79,10 @@
       "Bash(sed -i \"s/replace with Salvo {{variables}}/replace with Volley {{variables}}/g; s/or Salvo {{variables}}/or Volley {{variables}}/g; s/by this Salvo instance/by this Volley instance/g\" /mnt/c/Users/Michael/Documents/development/salvo/js/collections.js)",
       "Bash(sed -i \"s|data/_salvo/cookies.json|data/_volley/cookies.json|g\" /mnt/c/Users/Michael/Documents/development/salvo/js/request.js)",
       "Bash(sed -i \"s|Salvo's own sync function|Volley's own sync function|g\" /mnt/c/Users/Michael/Documents/development/salvo/js/curl.js)",
-      "Bash(sed -i \"s/Salvo includes a small built-in/Volley includes a small built-in/g; s/req.url holds a shell command line; Salvo spawns/req.url holds a shell command line; Volley spawns/g\" /mnt/c/Users/Michael/Documents/development/salvo/js/mcp.js)"
+      "Bash(sed -i \"s/Salvo includes a small built-in/Volley includes a small built-in/g; s/req.url holds a shell command line; Salvo spawns/req.url holds a shell command line; Volley spawns/g\" /mnt/c/Users/Michael/Documents/development/salvo/js/mcp.js)",
+      "Bash(node --test test/server.test.js)",
+      "Bash(node --test test/)",
+      "Bash(node --test test/*.test.js)"
     ]
   }
 }

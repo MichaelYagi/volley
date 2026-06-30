@@ -38,8 +38,8 @@ test('buildColsFromFiles groups requests, nests folders, and reads _volley/*', (
   const files = [
     { path: 'Demo/Get Users.json', content: JSON.stringify({ name: 'Get Users', method: 'GET', url: '/users' }) },
     { path: 'Demo/Create User.json', content: JSON.stringify({ name: 'Create User', method: 'POST', url: '/users', folder: 'Admin' }) },
-    { path: _volley/envs.json', content: JSON.stringify([{ id: 'e1', name: 'Dev', vars: {} }]) },
-    { path: _volley/history.json', content: JSON.stringify([{ method: 'GET', url: '/x', status: 200, elapsed: 12 }]) },
+    { path: '_volley/envs.json', content: JSON.stringify([{ id: 'e1', name: 'Dev', vars: {} }]) },
+    { path: '_volley/history.json', content: JSON.stringify([{ method: 'GET', url: '/x', status: 200, elapsed: 12 }]) },
     { path: 'not-json.txt', content: 'ignored' },
   ];
 

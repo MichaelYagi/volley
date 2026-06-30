@@ -153,6 +153,19 @@ function addFolder(colId) {
   scheduleDiskSave();
 }
 
+async function deleteFolder(colId, folderId) {
+  const col    = state.cols.find(c => c.id === colId);
+  const folder = col?.folders.find(f => f.id === folderId);
+  if (!folder) return;
+  const msg = folder.requests.length
+    ? `Delete folder "${folder.name}" and its ${folder.requests.length} request(s)?`
+    : `Delete folder "${folder.name}"?`;
+  if (!await confirmDialog(msg, { okLabel: 'Delete', danger: true })) return;
+  col.folders = col.folders.filter(f => f.id !== folderId);
+  renderSidebar();
+  scheduleDiskSave();
+}
+
 // ─── Request CRUD ─────────────────────────────────────────────────────────────
 
 function newRequestTemplate() {

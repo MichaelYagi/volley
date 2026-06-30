@@ -121,10 +121,7 @@
   padding: 0;
 }
 .col-menu-btn:hover { background: var(--bg-input); color: var(--text); }
-.col-header:hover .col-menu-btn,
-.folder-header:hover .col-menu-btn { visibility: visible; }
 
-/* Always show on touch devices where hover isn't available */
 @media (hover: none) {
   .col-menu-btn { visibility: visible; }
 }

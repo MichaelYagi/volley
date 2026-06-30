@@ -397,9 +397,11 @@ function folderCtx(event, colId, folderId) {
   event.preventDefault();
   event.stopPropagation();
   showCtxMenu(event.clientX, event.clientY, [
-    { label: 'New Request', action: () => addReq(colId, folderId) },
+    { label: 'New Request',   action: () => addReq(colId, folderId) },
     'sep',
-    { label: 'Run Folder',  action: () => runFolder(colId, folderId) },
+    { label: 'Run Folder',    action: () => runFolder(colId, folderId) },
+    'sep',
+    { label: 'Delete Folder', action: () => deleteFolder(colId, folderId), danger: true },
   ]);
 }
 

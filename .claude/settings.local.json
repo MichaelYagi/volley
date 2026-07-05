@@ -82,7 +82,10 @@
       "Bash(sed -i \"s/Salvo includes a small built-in/Volley includes a small built-in/g; s/req.url holds a shell command line; Salvo spawns/req.url holds a shell command line; Volley spawns/g\" /mnt/c/Users/Michael/Documents/development/salvo/js/mcp.js)",
       "Bash(node --test test/server.test.js)",
       "Bash(node --test test/)",
-      "Bash(node --test test/*.test.js)"
+      "Bash(node --test test/*.test.js)",
+      "Bash(pkill -f \"node server.js\")",
+      "Skill(run)",
+      "Bash(command -v chromium-cli)"
     ]
   }
 }

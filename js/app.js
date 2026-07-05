@@ -115,6 +115,7 @@ async function init() {
   applyFeatureFlags();
   refreshCookieJar().then(() => { if (activeTab()?.reqTab === 'headers') renderReqPanel(); });
   refreshMockServerStatus();
+  refreshWebhooksStatusBadge();
   initGitSync();
   renderEnvSelect();
   renderSidebar();

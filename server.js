@@ -805,6 +805,76 @@ function mockStatus() {
   return { running: !!mockServer, port: mockState.port, routes: mockState.routes.length };
 }
 
+// ─── Webhook capture server ──────────────────────────────────────────────────────
+// A third, optional HTTP server that accepts any request on any method/path,
+// always replies 200, and logs what it received (headers/body/query) — for
+// testing one local service calling another as a webhook. The log survives
+// stop/restart and is only cleared explicitly, capped at CAPTURE_LOG_MAX
+// entries (newest first).
+
+let captureServer = null;
+let capturePort   = null;
+let captureLog    = [];
+const CAPTURE_LOG_MAX = 200;
+
+function createCaptureServer() {
+  return http.createServer((req, res) => {
+    const u = new URL(req.url, 'http://localhost');
+    const chunks = [];
+    req.on('data', c => chunks.push(c));
+    req.on('end', () => {
+      captureLog.unshift({
+        id:      crypto.randomUUID(),
+        time:    Date.now(),
+        method:  req.method,
+        path:    u.pathname,
+        query:   u.search,
+        headers: req.headers,
+        body:    Buffer.concat(chunks).toString('utf8'),
+      });
+      if (captureLog.length > CAPTURE_LOG_MAX) captureLog.length = CAPTURE_LOG_MAX;
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    });
+  });
+}
+
+function startCaptureServer(port) {
+  return new Promise((resolve, reject) => {
+    if (captureServer) { reject(new Error('Webhook capture server already running')); return; }
+    const srv = createCaptureServer();
+    srv.once('error', reject);
+    srv.listen(port, () => {
+      captureServer = srv;
+      capturePort   = srv.address().port;
+      resolve({ port: capturePort });
+    });
+  });
+}
+
+function stopCaptureServer() {
+  return new Promise(resolve => {
+    if (!captureServer) { resolve(); return; }
+    captureServer.close(() => {
+      captureServer = null;
+      capturePort   = null;
+      resolve();
+    });
+  });
+}
+
+function captureStatus() {
+  return { running: !!captureServer, port: capturePort, count: captureLog.length };
+}
+
+function clearCaptureLog() {
+  captureLog = [];
+}
+
+function getCaptureLog() {
+  return captureLog;
+}
+
 // ─── HTTP server ────────────────────────────────────────────────────────────────
 const server = http.createServer((req, res) => {
   const start = Date.now();
@@ -952,6 +1022,50 @@ const server = http.createServer((req, res) => {
         res.end(JSON.stringify({ ok: false, error: err.message }));
       }
     });
+    return;
+  }
+
+  if (u.pathname === '/api/webhooks/status' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, ...captureStatus() }));
+    return;
+  }
+
+  if (u.pathname === '/api/webhooks/start' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const { port } = JSON.parse(body || '{}');
+        const result = await startCaptureServer(Number(port));
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, ...result }));
+      } catch (err) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (u.pathname === '/api/webhooks/stop' && req.method === 'POST') {
+    stopCaptureServer().then(() => {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    });
+    return;
+  }
+
+  if (u.pathname === '/api/webhooks/log' && req.method === 'GET') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, requests: captureLog }));
+    return;
+  }
+
+  if (u.pathname === '/api/webhooks/clear' && req.method === 'POST') {
+    clearCaptureLog();
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true }));
     return;
   }
 
@@ -1651,6 +1765,7 @@ async function shutdown(signal) {
   shuttingDown = true;
   log('INFO', `${signal} received, shutting down...`);
   await stopMockServer();
+  await stopCaptureServer();
   for (const cleanup of activeRelays) cleanup();
   server.close(() => {
     log('INFO', 'Server closed');
@@ -1676,6 +1791,7 @@ module.exports = {
   loadCookies, saveCookies, cookieMatches, parseSetCookie, updateJarCookie,
   buildFetchBody, attachJarCookies,
   findMockMatch, createMockServer, startMockServer, stopMockServer, mockStatus,
+  createCaptureServer, startCaptureServer, stopCaptureServer, captureStatus, clearCaptureLog, getCaptureLog,
   getCliArg,
   wsAcceptKey, encodeWsFrame, WsFrameDecoder, wsConnectUpstream, WS_OP,
 };

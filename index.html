@@ -42,6 +42,7 @@
     <button onclick="openEnvModal()">Environments</button>
     <button onclick="openCookiesModal()" title="View and manage stored cookies">Cookies</button>
     <button onclick="openMockModal()" title="Serve canned responses for requests with mocking enabled">Mock Server<span id="mock-server-badge" class="tab-badge" style="display:none">●</span></button>
+    <button onclick="openWebhooksModal()" title="Capture and inspect incoming requests — for testing local services calling each other">Webhooks<span id="webhooks-badge" class="tab-badge" style="display:none">●</span></button>
     <div class="sep"></div>
     <span id="server-status" class="server-dot server-dot-online" title="Server online"></span>
     <span id="save-status" style="font-size:11px;color:var(--text-muted)">All changes saved</span>
@@ -291,6 +292,56 @@
   </div>
 </div>
 
+<!-- ── Webhooks Modal ────────────────────────────────────────────────────── -->
+<div id="webhooks-modal" class="modal-bg" style="display:none"
+     onclick="if(event.target===this)closeWebhooksModal()">
+  <div class="modal webhooks-modal" onclick="event.stopPropagation()">
+    <h3>Webhooks</h3>
+    <p class="muted">Listens for any incoming request on any method/path and always replies 200 —
+       point another local service at it to see exactly what it sends. Only reachable from this
+       machine (or your local network), not the public internet.</p>
+    <details class="webhooks-notes">
+      <summary>Sender on another device? Read this first</summary>
+      <div class="muted">
+        <p><code>localhost</code> only ever means "this same machine" — it's relative to
+           whatever sent the request, not to Volley. A sender on a different device must use
+           <strong>this machine's LAN IP</strong> (e.g. <code>192.168.x.x</code>, from
+           <code>ipconfig</code>/<code>ip addr</code>), not <code>localhost</code>.</p>
+        <p>Running Volley inside <strong>WSL2</strong>? WSL2 only auto-forwards
+           <code>localhost</code> traffic from Windows into WSL2 — it does not expose WSL2's
+           ports to your LAN by default. Another device on your network won't be able to reach
+           this listener at all until you either:</p>
+        <ul>
+          <li>Enable WSL2 mirrored networking (Windows 11 22H2+): add
+              <code>networkingMode=mirrored</code> under <code>[wsl2]</code> in
+              <code>%UserProfile%\.wslconfig</code>, then <code>wsl --shutdown</code> and
+              restart, or</li>
+          <li>Add a Windows port forward:
+              <code>netsh interface portproxy add v4tov4 listenaddress=0.0.0.0
+              listenport=&lt;port&gt; connectaddress=&lt;WSL2 IP&gt; connectport=&lt;port&gt;</code>
+              plus a matching <code>netsh advfirewall</code> allow rule — note the WSL2 IP
+              changes on every restart, so this needs redoing each time.</li>
+        </ul>
+        <p>Test reachability directly first: <code>curl -X POST http://&lt;ip&gt;:&lt;port&gt;/test -d '{}'</code>
+           from the sending device, before wiring it into whatever is sending the real webhook.</p>
+      </div>
+    </details>
+    <label>Port</label>
+    <input id="webhooks-port-input" type="number" value="5876" style="width:120px">
+    <div id="webhooks-status" class="muted" style="font-size:12px;margin:8px 0"></div>
+    <div class="webhooks-layout">
+      <div id="webhooks-list" class="webhooks-list"></div>
+      <div id="webhooks-detail" class="webhooks-detail"></div>
+    </div>
+    <div class="modal-footer" style="margin-top:16px">
+      <button onclick="clearWebhookLog()" style="color:var(--danger)">Clear</button>
+      <button id="webhooks-stop-btn" onclick="stopWebhooks()" style="color:var(--danger);display:none">Stop</button>
+      <button id="webhooks-start-btn" onclick="startWebhooks()">Start</button>
+      <button class="btn-primary" onclick="closeWebhooksModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── About Modal ───────────────────────────────────────────────────────── -->
 <div id="about-modal" class="modal-bg" style="display:none"
      onclick="if(event.target===this)closeAboutModal()">
@@ -485,6 +536,7 @@ SOFTWARE.</pre>
 <script src="js/modals.js"></script>      <!-- environment modal                 -->
 <script src="js/runner.js"></script>      <!-- collection runner                 -->
 <script src="js/mock.js"></script>        <!-- mock server modal                 -->
+<script src="js/webhooks.js"></script>    <!-- webhook capture modal             -->
 <script src="js/settings.js"></script>      <!-- settings modal & feature flags    -->
 <script src="js/logs.js"></script>         <!-- server log viewer                 -->
 <script src="js/git.js"></script>          <!-- git sync: push/pull/conflicts      -->

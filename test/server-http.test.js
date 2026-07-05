@@ -262,6 +262,47 @@ test('GET/POST /api/mock/* starts, status-checks, and stops the local mock serve
   assert.strictEqual(statusAfter.running, false);
 });
 
+test('GET/POST /api/webhooks/* starts capture, logs an incoming request, and stops', async () => {
+  const startRes = await fetch(`${base}/api/webhooks/start`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body:    JSON.stringify({ port: 0 }),
+  });
+  const start = await startRes.json();
+  assert.strictEqual(start.ok, true);
+  assert.ok(start.port > 0);
+
+  const hookRes = await fetch(`http://127.0.0.1:${start.port}/hooks/ping`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ hello: 'world' }),
+  });
+  assert.strictEqual(hookRes.status, 200);
+  assert.deepStrictEqual(await hookRes.json(), { ok: true });
+
+  const statusRes = await fetch(`${base}/api/webhooks/status`);
+  const status = await statusRes.json();
+  assert.strictEqual(status.running, true);
+  assert.strictEqual(status.count, 1);
+
+  const logRes = await fetch(`${base}/api/webhooks/log`);
+  const { requests } = await logRes.json();
+  assert.strictEqual(requests.length, 1);
+  assert.strictEqual(requests[0].method, 'POST');
+  assert.strictEqual(requests[0].path, '/hooks/ping');
+  assert.strictEqual(requests[0].body, JSON.stringify({ hello: 'world' }));
+
+  const clearRes = await fetch(`${base}/api/webhooks/clear`, { method: 'POST' });
+  assert.deepStrictEqual(await clearRes.json(), { ok: true });
+  assert.strictEqual((await (await fetch(`${base}/api/webhooks/log`)).json()).requests.length, 0);
+
+  const stopRes = await fetch(`${base}/api/webhooks/stop`, { method: 'POST' });
+  assert.deepStrictEqual(await stopRes.json(), { ok: true });
+
+  const statusAfter = await (await fetch(`${base}/api/webhooks/status`)).json();
+  assert.strictEqual(statusAfter.running, false);
+});
+
 test('POST /api/proxy transparently answers a Digest auth challenge', async () => {
   const creds = { username: 'alice', password: 'secret' };
   const realm = 'testrealm@host.com';

@@ -14,7 +14,7 @@ const path = require('path');
 const DATA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'volley-test-'));
 process.env.VOLLEY_DATA_DIR = DATA_DIR;
 
-const { sanitizeName, uniqueName, buildColsFromFiles, loadData, saveData, normalizeEnvs, parseDigestChallenge, buildDigestHeader, parseSetCookie, cookieMatches, updateJarCookie, loadCookies, saveCookies, getCliArg, findMockMatch, startMockServer, stopMockServer, mockStatus, wsAcceptKey, encodeWsFrame, WsFrameDecoder, WS_OP } = require('../server.js');
+const { sanitizeName, uniqueName, buildColsFromFiles, loadData, saveData, normalizeEnvs, parseDigestChallenge, buildDigestHeader, parseSetCookie, cookieMatches, updateJarCookie, loadCookies, saveCookies, getCliArg, findMockMatch, startMockServer, stopMockServer, mockStatus, startCaptureServer, stopCaptureServer, captureStatus, clearCaptureLog, getCaptureLog, wsAcceptKey, encodeWsFrame, WsFrameDecoder, WS_OP } = require('../server.js');
 
 function resetData() {
   fs.rmSync(DATA_DIR, { recursive: true, force: true });
@@ -361,6 +361,36 @@ test('startMockServer/stopMockServer/mockStatus round trip and serve a route', a
 
   await stopMockServer();
   assert.deepEqual(mockStatus(), { running: false, port: null, routes: 0 });
+});
+
+test('startCaptureServer/stopCaptureServer/captureStatus round trip and log an incoming request', async () => {
+  clearCaptureLog();
+  assert.deepEqual(captureStatus(), { running: false, port: null, count: 0 });
+
+  const { port } = await startCaptureServer(0);
+  assert.deepEqual(captureStatus(), { running: true, port, count: 0 });
+
+  const res = await fetch(`http://127.0.0.1:${port}/hooks/order-created?id=42`, {
+    method:  'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Signature': 'abc123' },
+    body:    JSON.stringify({ hello: 'world' }),
+  });
+  assert.strictEqual(res.status, 200);
+  assert.deepEqual(await res.json(), { ok: true });
+
+  assert.strictEqual(captureStatus().count, 1);
+  const [entry] = getCaptureLog();
+  assert.strictEqual(entry.method, 'POST');
+  assert.strictEqual(entry.path, '/hooks/order-created');
+  assert.strictEqual(entry.query, '?id=42');
+  assert.strictEqual(entry.headers['x-signature'], 'abc123');
+  assert.strictEqual(entry.body, JSON.stringify({ hello: 'world' }));
+
+  clearCaptureLog();
+  assert.strictEqual(captureStatus().count, 0);
+
+  await stopCaptureServer();
+  assert.deepEqual(captureStatus(), { running: false, port: null, count: 0 });
 });
 
 // ─── WebSocket relay primitives ──────────────────────────────────────────────

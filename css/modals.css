@@ -69,6 +69,55 @@
 .cookie-expires  { color: var(--text-muted); font-size: 11px; margin-top: 4px; }
 .cookie-del      { color: var(--danger); padding: 0 4px; }
 
+/* ─── Webhooks Modal ─────────────────────────────────────────────────────────── */
+.webhooks-modal { width: 640px; max-width: 92vw; }
+.webhooks-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 16px;
+  min-height: 280px;
+  max-height: 50vh;
+}
+
+.webhooks-list   { border-right: 1px solid var(--bg-input); padding-right: 12px; overflow-y: auto; }
+.webhooks-detail { overflow-y: auto; font-size: 12px; }
+
+.webhooks-notes {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  font-size: 12px;
+}
+.webhooks-notes summary  { cursor: pointer; color: var(--text); font-weight: 500; }
+.webhooks-notes summary:hover { color: var(--text-bright); }
+.webhooks-notes p        { margin: 8px 0; font-size: 12px; line-height: 1.6; }
+.webhooks-notes ul       { margin: 0 0 8px 18px; padding: 0; }
+.webhooks-notes li       { margin-bottom: 6px; font-size: 12px; line-height: 1.6; }
+.webhooks-notes code     { background: var(--bg); border-radius: 3px; padding: 1px 4px; font-family: monospace; color: var(--text); word-break: break-all; }
+
+.webhook-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 2px;
+  font-size: 11px;
+}
+.webhook-item:hover  { background: var(--bg-input); }
+.webhook-item.active { background: var(--bg-input); }
+.webhook-item-path   { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); font-family: monospace; }
+.webhook-item-time   { color: var(--text-muted); flex-shrink: 0; }
+
+.webhook-detail-title { font-family: monospace; color: var(--text-bright); margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+.webhook-headers      { border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; margin-bottom: 4px; }
+.webhook-header-row   { display: flex; gap: 8px; padding: 2px 0; word-break: break-all; }
+.webhook-header-key   { color: var(--text-muted); flex-shrink: 0; }
+.webhook-header-value { color: var(--text); font-family: monospace; }
+.webhook-body         { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto; }
+
 /* ─── Collection Runner Modal ───────────────────────────────────────────────── */
 .runner-modal  { min-width: 520px; max-width: 640px; }
 .runner-results { max-height: 50vh; overflow-y: auto; }
@@ -202,6 +251,9 @@
   .env-modal    { min-width: 0; max-width: 100%; }
   .env-layout   { grid-template-columns: 1fr; min-height: 0; }
   .env-list     { border-right: none; border-bottom: 1px solid var(--bg-input); padding-right: 0; padding-bottom: 12px; margin-bottom: 12px; }
+  .webhooks-modal   { width: 100%; }
+  .webhooks-layout  { grid-template-columns: 1fr; max-height: none; }
+  .webhooks-list    { border-right: none; border-bottom: 1px solid var(--bg-input); padding-right: 0; padding-bottom: 12px; margin-bottom: 12px; max-height: 160px; }
 
   .notif { left: 12px; right: 12px; bottom: 12px; max-width: none; }
 }

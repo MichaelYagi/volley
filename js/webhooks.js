@@ -71,7 +71,8 @@ function renderWebhookList() {
     return;
   }
   list.innerHTML = _webhookLog.map(r => `
-    <div class="webhook-item${r.id === _webhookSelectedId ? ' active' : ''}" onclick="selectWebhookEntry('${r.id}')">
+    <div class="webhook-item${r.id === _webhookSelectedId ? ' active' : ''}" onclick="selectWebhookEntry('${r.id}')" title="Click to ${r.id === _webhookSelectedId ? 'collapse' : 'expand'}">
+      <span class="webhook-item-arrow${r.id === _webhookSelectedId ? ' open' : ''}">&#9654;</span>
       <span class="runner-method" style="color:${MC[r.method] || 'var(--text)'}">${esc(r.method)}</span>
       <span class="webhook-item-path">${esc(r.path)}</span>
       <span class="webhook-item-time">${new Date(r.time).toLocaleTimeString()}</span>
@@ -79,7 +80,7 @@ function renderWebhookList() {
 }
 
 function selectWebhookEntry(id) {
-  _webhookSelectedId = id;
+  _webhookSelectedId = _webhookSelectedId === id ? null : id;
   renderWebhookList();
   renderWebhookDetail();
 }

@@ -55,6 +55,7 @@ async function sendRequest() {
           headers,
           body:    buildDirectBody(bodyKind, bodyPayload),
           signal:  tab.abortCtrl.signal,
+          cache:   'no-store',
         });
         // SSE needs the proxy's streaming path — fall through
         if ((directRes.headers.get('content-type') || '').includes('text/event-stream')) {

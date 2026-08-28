@@ -56,6 +56,7 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 - [CLI Runner](#cli-runner)
 - [Mock Server](#mock-server)
 - [Cookie Jar](#cookie-jar)
+- [Webhooks](#webhooks)
 - [Tabs](#tabs)
 - [Export / Import](#export--import)
   - [Import cURL](#import-curl)
@@ -93,7 +94,8 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 - **Saved response Examples** — after sending a request, click "Save as Example" above the response body to snapshot its status/headers/body under a name. Saved examples live on the request's "Examples" tab — view one to load it back into the response viewer, or delete it.
 - **Mock servers** — enable "Mock" on a request (its "Mock" tab) to define a canned status/headers/body/delay, then start the local mock server (topbar → "Mock Server") to serve every enabled mock on a chosen port. Routes are matched by method and path, with `:name` path segments matching anything (mirroring a request's `{{baseUrl}}/users/:id`-style URL).
 - **Cookie jar** — `Set-Cookie` responses are stored automatically and replayed on later requests to matching domains. View or clear stored cookies from the "Cookies" topbar button.
-- **Response viewer** — status, timing, size, collapsible JSON tree, raw body, response headers. Large JSON responses (>1MB) fall back to raw text to avoid freezing the tab.
+- **Webhooks** — click "Webhooks" in the topbar to start a local listener that accepts any request on any method/path, always replies `200`, and logs what it received (method, path, headers, body, timestamp) — for seeing exactly what one local service sends another. See [Webhooks](#webhooks).
+- **Response viewer** — status, timing, size, collapsible JSON tree, raw body, response headers. The JSON tree is virtualized (only visible rows are in the DOM) and parsed off the main thread in a Web Worker, so large responses stay fast to render and scroll without freezing the tab.
 - **cURL** — every request shows a live curl command that updates as you edit, with one-click copy. Click **Edit** to edit the curl directly — change the method, URL, headers, or body in curl syntax and **Save** to apply it back to the request fields. **Import cURL** (under **Import ▾**) accepts one or many curl commands at once: paste a block or a whole bash script, and Volley creates the requests for you. See [Import cURL](#import-curl).
 - **Notes on params/headers** — annotate individual rows ("Dev key", "pagination cursor", etc.)
 - **Request history** — every sent request logged with method, status, and timing; click to replay
@@ -132,7 +134,8 @@ volley/
     ├── sidebar.js          — sidebar rendering, search, context menus
     ├── curl.js             — curl command generation
     ├── request.js          — request editor: tabs, KV/auth/body editors, bulk edit
-    ├── response.js         — response panel rendering, DOM-based JSON tree, SSE/WebSocket/MCP transcripts
+    ├── response.js         — response panel rendering, virtualized DOM-based JSON tree, SSE/WebSocket/MCP transcripts
+    ├── json-worker.js      — Web Worker: parses/pretty-prints large JSON response bodies off the main thread
     ├── send.js             — request execution (direct fetch → proxy fallback), response parsing, SSE, OAuth2
     ├── websocket.js        — WebSocket client (ws://, wss://), relayed through the local server
     ├── mcp.js              — MCP client (Streamable HTTP and stdio transports, via req.protocol)
@@ -140,6 +143,7 @@ volley/
     ├── modals.js           — environment & global variables modal
     ├── runner.js           — Collection Runner (run a collection/folder, CSV/JSON data files, results modal)
     ├── mock.js             — Mock Server modal (build routes from requests with mocking enabled, start/stop)
+    ├── webhooks.js         — Webhooks modal (local request-capture listener, start/stop, log)
     ├── settings.js         — Settings modal, feature flags (stored in localStorage)
     ├── logs.js             — Log viewer modal, SSE stream from /api/logs/stream
     ├── git.js              — Git Sync modal: push/pull/conflict resolution/auto-sync
@@ -416,6 +420,18 @@ Click **Cookies** in the topbar to open the cookie jar modal, where you can see 
 
 Any cookie that would be attached to the current request also shows up as a read-only `Cookie` row in the Headers tab's "Auto-generated" section, so you can see exactly what will be sent.
 
+## Webhooks
+
+Click **Webhooks** in the topbar to open a listener for testing one local service calling another — point whatever sends the real webhook at Volley first to see exactly what it sends before wiring it into the real destination.
+
+1. Set a **Port** (default `5876`) and click **Start**. Volley spawns a local HTTP server that accepts any method/path and always replies `200`.
+2. Point the sending service at `http://localhost:<port>` (or `http://<this machine's LAN IP>:<port>` for a sender on another device — `localhost` only ever means "this same machine").
+3. Each captured request appears in the list (method, path, time) as it arrives — the modal polls while open, so nothing needs a manual refresh. Click one to see its headers and body.
+
+Click **Clear** to wipe the log, or **Stop** to shut the listener down. A dot on the topbar **Webhooks** button shows when it's running.
+
+Running inside **WSL2**? WSL2 only forwards `localhost` traffic from Windows into WSL2 — it doesn't expose WSL2's ports to your LAN by default, so a sender on another device won't reach the listener until you enable mirrored networking (Windows 11 22H2+) or add a manual `netsh` port forward. The in-app "Sender on another device? Read this first" note walks through both.
+
 ## Tabs
 
 Opening a request from the sidebar opens it in a new tab (or focuses its existing tab if already open). Each tab keeps its own unsaved edits, response, and active sub-tab (Params/Headers/Auth/Body/cURL), so you can work on multiple requests side by side. Close a tab with its `×` button; closing the last tab returns to the "Select or create a request" empty state.
@@ -551,7 +567,8 @@ node --test
 Runs the test suite with Node's built-in test runner — no dependencies needed (Node 18+). Covers:
 
 - `test/server.test.js` — `sanitizeName`/`uniqueName`, `buildColsFromFiles`, the `saveData`/`loadData` round trip (including `globals.json`) against a temporary data directory (the real `data/` is never touched), `getCliArg` (`--data-dir`/`--port` parsing), and `findMockMatch`/`startMockServer`/`stopMockServer`/`mockStatus`
-- `test/server-http.test.js` — `/api/data`, `/api/save`, `/api/proxy`/`/api/proxy-stream` (raw, formdata including file uploads, urlencoded, binary bodies, SSE streaming, Digest auth, cookie jar, and unreachable upstreams), `/api/mock/start`/`/api/mock/status`/`/api/mock/stop`, the `/api/ws-proxy` WebSocket relay, the `/api/mcp-stdio` MCP stdio relay, OAuth2 callback handling, and static file serving, against a real server instance
+- `test/server-http.test.js` — `/api/data`, `/api/save`, `/api/proxy`/`/api/proxy-stream` (raw, formdata including file uploads, urlencoded, binary bodies, SSE streaming, Digest auth, cookie jar, and unreachable upstreams), `/api/mock/start`/`/api/mock/status`/`/api/mock/stop`, the `/api/webhooks/start`/`/api/webhooks/status`/`/api/webhooks/log`/`/api/webhooks/stop` capture listener, the `/api/ws-proxy` WebSocket relay, the `/api/mcp-stdio` MCP stdio relay, OAuth2 callback handling, and static file serving, against a real server instance
+- `test/protocols-e2e.test.js` — end-to-end coverage of GraphQL bodies, OAuth2 token acquisition/refresh (Client Credentials & Authorization Code), SSE streaming, and the MCP Streamable HTTP transport, against a real `server.js` instance plus small local upstream servers, exercising the actual `js/send.js`/`js/mcp.js` code in a sandbox
 - `test/send.test.js` — SSE event-block parsing (`parseSseBlock`/`extractSseEvents`), run in a sandboxed copy of the global-scope frontend JS
 - `test/collections.test.js` — `parsePostman` and `mergeImportedData` (including collection descriptions) and `normalizeReq`'s defaults for description/comments/mock/examples, run in a sandboxed copy of the global-scope frontend JS
 - `test/request.test.js` — path variables, computed-headers preview, the KV editor (including bulk edit and form-data file rows), the binary body type, `{{variable}}` autocomplete (including global variable fallback and Collection Runner row data), `extractMockPath`, and the Docs/Examples/Mock tabs and badges, run in a sandboxed copy of the global-scope frontend JS

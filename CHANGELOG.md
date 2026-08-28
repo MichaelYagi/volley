@@ -1,5 +1,26 @@
 # Changelog
 
+## v0.1.0-beta.1 — 2026-08-28
+
+First beta. Published to npm as [`@michaelyagi/volley`](https://www.npmjs.com/package/@michaelyagi/volley) — install with `npx @michaelyagi/volley`, or keep cloning the repo and running `node server.js` as before.
+
+### Added
+
+- **Webhooks** — a topbar "Webhooks" button starts a local listener that accepts any request on any method/path, always replies `200`, and logs what it received (method, path, headers, body, timestamp) — for seeing exactly what one local service sends another before wiring it into the real destination. Includes guidance for reaching the listener from another device, including WSL2's networking quirks.
+- **Raw response view** — a new "Raw" tab in the response panel shows the unformatted response body alongside the JSON tree.
+- **Faster large responses** — the JSON tree is now virtualized (only visible rows are kept in the DOM) and parsed off the main thread in a Web Worker, so large response bodies stay fast to render and scroll instead of freezing the tab.
+- **Delete Folder** — folders can now be deleted directly from their right-click context menu.
+- A "⋮" options button on collection and folder rows opens the same context menu as right-click, without needing a right-click.
+- Published to npm as `@michaelyagi/volley`, installable via `npx`. `package.json`'s `version` field is now the single source of truth for the version shown in the About modal (previously a separate `VERSION` file).
+
+### Fixed
+
+- The direct `fetch()` path now sends `cache: 'no-store'`, so Volley always hits the network instead of occasionally replaying a stale response from the browser's HTTP cache.
+
+### Tests
+
+125 tests across eight test files (up from 116 across seven) — added end-to-end coverage for GraphQL, OAuth2 token acquisition/refresh, SSE, and MCP Streamable HTTP (`test/protocols-e2e.test.js`), plus coverage of the webhook capture endpoints.
+
 ## v0.1.0-alpha — 2026-06-26
 
 First public release.

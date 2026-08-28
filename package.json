@@ -1,0 +1,38 @@
+{
+  "name": "@michaelyagi/volley",
+  "version": "0.1.0-beta.1",
+  "description": "A fast, free, local-first HTTP client — the core Postman workflow, without the account walls, forced cloud sync, telemetry, or subscription nags.",
+  "keywords": ["http-client", "api-client", "postman", "rest-client", "local-first"],
+  "homepage": "https://github.com/MichaelYagi/volley#readme",
+  "bugs": "https://github.com/MichaelYagi/volley/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MichaelYagi/volley.git"
+  },
+  "license": "MIT",
+  "author": "Michael Yagi",
+  "main": "server.js",
+  "bin": {
+    "volley": "server.js"
+  },
+  "files": [
+    "server.js",
+    "cli.js",
+    "index.html",
+    "js",
+    "css",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  }
+}

@@ -893,7 +893,7 @@ const server = http.createServer((req, res) => {
 
   if (u.pathname === '/api/version' && req.method === 'GET') {
     let version = 'unknown';
-    try { version = fs.readFileSync(path.join(__dirname, 'VERSION'), 'utf8').trim(); } catch {}
+    try { version = 'v' + JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'utf8')).version; } catch {}
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ version }));
     return;

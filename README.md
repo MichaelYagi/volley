@@ -2,6 +2,8 @@
 
 > **AI-authored.** 100% of the code was written by Claude (Anthropic); I shaped the architecture, scope, and every decision, and did all the testing.
 
+![Volley screenshot](img/screenshot.png)
+
 A fast, free, local-first HTTP client — the core Postman workflow you already know, without the account walls, forced cloud sync, telemetry, or subscription nags.
 
 Volley is just a small Node server and some plain HTML/JS/CSS. Clone it, run one command, and you have a full-featured API client: collections and folders, environments and globals, OAuth2/JWT/Digest auth, pre-request and test scripts, a collection runner with CSV/JSON data-driven runs, a mock server, a cookie jar, and one-click cURL — all working offline, all stored as plain JSON files you fully own. Import your existing Postman collections and environments and you're up and running in minutes.
@@ -17,6 +19,14 @@ node server.js
 ```
 
 Then open `http://localhost:5874`. No `npm install`, no dependencies — `server.js` only uses Node's standard library.
+
+Prefer not to clone the repo? It's also published on npm:
+
+```bash
+npx @michaelyagi/volley
+```
+
+`npx` runs it from a temporary cache, so pass `--data-dir=<path>` (see below) to keep your collections in a permanent folder across runs — otherwise a fresh `npx` invocation may start from an empty `data/`.
 
 To use a different port, pass `--port=<port>` (or set the `PORT` env var):
 

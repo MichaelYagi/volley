@@ -130,6 +130,213 @@ function cookieMatches(cookie, urlObj) {
   return true;
 }
 
+// ─── Monitors (data/_volley/monitors.json + monitor-runs.json) ──────────────────
+// A monitor is a saved { collection, folder?, env? } run definition plus a
+// schedule; server.js re-runs it on that interval via the same headless
+// runner cli.js uses, in-process, against its own already-listening port.
+// Definitions (monitors.json) are meant to be shared/synced like any other
+// collection config; run history (monitor-runs.json) is ephemeral local
+// state, same treatment as history.json — see Git Sync's exclusion list.
+
+const { runCollectionHeadless } = require('./lib/headless-runner.js');
+
+const MONITORS_FILE     = path.join(VOLLEY_DIR, 'monitors.json');
+const MONITOR_RUNS_FILE = path.join(VOLLEY_DIR, 'monitor-runs.json');
+const MAX_MONITOR_RUNS  = 20;
+
+let monitors        = [];  // [{ id, name, collection, folder, env, intervalMinutes, enabled }]
+let monitorRuns      = {}; // { [monitorId]: [{ at, elapsed, ok, total, passed, testTotal, testPassed, error }, ...] }
+const monitorTimers = new Map();
+
+function loadMonitors() {
+  try { monitors = JSON.parse(fs.readFileSync(MONITORS_FILE, 'utf8')); } catch { monitors = []; }
+  try { monitorRuns = JSON.parse(fs.readFileSync(MONITOR_RUNS_FILE, 'utf8')); } catch { monitorRuns = {}; }
+}
+
+function saveMonitors() {
+  fs.mkdirSync(VOLLEY_DIR, { recursive: true });
+  fs.writeFileSync(MONITORS_FILE, JSON.stringify(monitors, null, 2));
+}
+
+function saveMonitorRuns() {
+  fs.mkdirSync(VOLLEY_DIR, { recursive: true });
+  fs.writeFileSync(MONITOR_RUNS_FILE, JSON.stringify(monitorRuns, null, 2));
+}
+
+function unscheduleMonitor(id) {
+  const t = monitorTimers.get(id);
+  if (t) { clearInterval(t); monitorTimers.delete(id); }
+}
+
+function scheduleMonitor(m) {
+  unscheduleMonitor(m.id);
+  if (!m.enabled || !m.intervalMinutes) return;
+  const handle = setInterval(() => { runMonitor(m.id).catch(() => {}); }, Math.max(1, m.intervalMinutes) * 60000);
+  handle.unref?.();
+  monitorTimers.set(m.id, handle);
+}
+
+function scheduleAllMonitors() {
+  for (const m of monitors) scheduleMonitor(m);
+}
+
+async function runMonitor(id) {
+  const m = monitors.find(x => x.id === id);
+  if (!m) throw new Error('Monitor not found');
+
+  const baseUrl  = `http://127.0.0.1:${server.address().port}`;
+  const startedAt = Date.now();
+  let run;
+  try {
+    const { results, failed } = await runCollectionHeadless({
+      baseUrl, collection: m.collection, folder: m.folder || null, envName: m.env || null,
+    });
+    const testTotal  = results.reduce((s, r) => s + (r.tests?.length || 0), 0);
+    const testFailed = results.reduce((s, r) => s + (r.tests?.filter(t => !t.passed).length || 0), 0);
+    run = {
+      at: startedAt, elapsed: Date.now() - startedAt, ok: !failed,
+      total:  results.length,
+      passed: results.filter(r => !r.error && (r.status == null || r.status < 400)).length,
+      testTotal, testPassed: testTotal - testFailed,
+      error: null,
+    };
+  } catch (err) {
+    run = { at: startedAt, elapsed: Date.now() - startedAt, ok: false, total: 0, passed: 0, testTotal: 0, testPassed: 0, error: err.message };
+  }
+
+  monitorRuns[id] = [run, ...(monitorRuns[id] || [])].slice(0, MAX_MONITOR_RUNS);
+  saveMonitorRuns();
+  log(run.ok ? 'INFO' : 'ERROR', `Monitor "${m.name}": ${run.error || (run.ok ? 'OK' : `${run.passed}/${run.total} requests, ${run.testPassed}/${run.testTotal} tests passed`)}`);
+  return run;
+}
+
+// ─── API Documentation (GET /docs) ───────────────────────────────────────────────
+// Renders a static, self-contained HTML page documenting every collection,
+// straight from the saved data/ state (not the browser's possibly-unsaved
+// editor state) — so it's always current and needs no separate "publish"
+// step. Point a tunnel (cloudflared, ngrok, ...) at it to share it.
+//
+// Credentials are deliberately omitted: the Authorization/Cookie header
+// values and every Auth-tab credential field are redacted — only the auth
+// *type* is shown. A hand-typed secret in some other header or in the body
+// is not redacted, same as every other export in Volley; keep real secrets
+// in {{environment variables}}, which are never part of a collection.
+
+function escHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+const DOCS_REDACTED_HEADERS = new Set(['authorization', 'cookie', 'set-cookie', 'proxy-authorization']);
+
+const AUTH_TYPE_LABELS = {
+  none: null,
+  bearer: 'Bearer Token', basic: 'Basic Auth', apikey: 'API Key',
+  oauth2_cc: 'OAuth 2.0 — Client Credentials', oauth2_pwd: 'OAuth 2.0 — Password Grant',
+  oauth2_auth_code: 'OAuth 2.0 — Authorization Code', digest: 'Digest Auth', jwt: 'JWT Bearer (HS256)',
+};
+
+function docsSlug(s) {
+  return String(s).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'x';
+}
+
+function docsBodyHtml(body) {
+  if (!body || body.type === 'none') return '';
+  if (body.type === 'raw' && body.raw) {
+    return `<h4>Body</h4><pre>${escHtml(body.raw)}</pre>`;
+  }
+  if (body.type === 'formdata' && body.formData?.length) {
+    const rows = body.formData.filter(f => f.enabled !== false)
+      .map(f => `<tr><td>${escHtml(f.key)}</td><td>${f.type === 'file' ? `<em>file: ${escHtml(f.fileName || '')}</em>` : escHtml(f.value)}</td></tr>`).join('');
+    return `<h4>Body (form-data)</h4><table><tbody>${rows}</tbody></table>`;
+  }
+  if (body.type === 'urlencoded' && body.formData?.length) {
+    const rows = body.formData.filter(f => f.enabled !== false)
+      .map(f => `<tr><td>${escHtml(f.key)}</td><td>${escHtml(f.value)}</td></tr>`).join('');
+    return `<h4>Body (x-www-form-urlencoded)</h4><table><tbody>${rows}</tbody></table>`;
+  }
+  if (body.type === 'graphql' && body.graphql) {
+    return `<h4>Body (GraphQL)</h4><pre>${escHtml(body.graphql.query || '')}</pre>${body.graphql.variables ? `<pre>${escHtml(body.graphql.variables)}</pre>` : ''}`;
+  }
+  if (body.type === 'binary') {
+    return `<h4>Body</h4><p><em>Binary file: ${escHtml(body.fileName || '')}</em></p>`;
+  }
+  return '';
+}
+
+function docsRequestHtml(r) {
+  const params  = (r.params  || []).filter(p => p.enabled !== false);
+  const headers = (r.headers || []).filter(h => h.enabled !== false);
+  const authLabel = AUTH_TYPE_LABELS[r.auth?.type];
+
+  const paramsHtml = params.length ? `<h4>Params</h4><table><tbody>${
+    params.map(p => `<tr><td>${escHtml(p.key)}</td><td>${escHtml(p.value)}</td>${p.note ? `<td class="note">${escHtml(p.note)}</td>` : '<td></td>'}</tr>`).join('')
+  }</tbody></table>` : '';
+
+  const headersHtml = headers.length ? `<h4>Headers</h4><table><tbody>${
+    headers.map(h => `<tr><td>${escHtml(h.key)}</td><td>${DOCS_REDACTED_HEADERS.has(String(h.key).toLowerCase()) ? '<em>&lt;redacted&gt;</em>' : escHtml(h.value)}</td></tr>`).join('')
+  }</tbody></table>` : '';
+
+  const authHtml = authLabel ? `<h4>Auth</h4><p>${escHtml(authLabel)}</p>` : '';
+
+  const examplesHtml = (r.examples || []).length ? `<h4>Examples</h4>${
+    r.examples.map(e => `<div class="example"><strong>${escHtml(e.name)}</strong> <span class="status-${Math.floor((e.status || 0) / 100)}">${e.status} ${escHtml(e.statusText || '')}</span><pre>${escHtml(e.body || '')}</pre></div>`).join('')
+  }` : '';
+
+  return `
+    <article class="req" id="${docsSlug(r.name)}">
+      <h3><span class="method m-${escHtml(r.method)}">${escHtml(r.method)}</span> ${escHtml(r.name)}</h3>
+      <code class="url">${escHtml(r.url)}</code>
+      ${r.description ? `<p class="desc">${escHtml(r.description)}</p>` : ''}
+      ${paramsHtml}${headersHtml}${authHtml}${docsBodyHtml(r.body)}${examplesHtml}
+    </article>`;
+}
+
+function buildDocsHtml(cols) {
+  const toc = cols.map(c => `<li><a href="#${docsSlug(c.name)}">${escHtml(c.name)}</a></li>`).join('');
+
+  const sections = cols.map(c => {
+    const topLevel = (c.requests || []).map(docsRequestHtml).join('');
+    const folders  = (c.folders || []).map(f => `
+      <h3 class="folder">${escHtml(f.name)}</h3>
+      ${(f.requests || []).map(docsRequestHtml).join('')}`).join('');
+    return `
+      <section id="${docsSlug(c.name)}">
+        <h2>${escHtml(c.name)}</h2>
+        ${c.description ? `<p class="desc">${escHtml(c.description)}</p>` : ''}
+        ${topLevel}${folders}
+      </section>`;
+  }).join('');
+
+  return `<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>API Documentation</title>
+<style>
+  body { font: 15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; max-width: 900px; margin: 0 auto; padding: 32px 20px 80px; color: #1f2328; background: #fff; }
+  h1 { font-size: 24px; }
+  h2 { border-bottom: 1px solid #d0d7de; padding-bottom: 8px; margin-top: 48px; }
+  h3 { font-size: 16px; margin-top: 28px; }
+  h3.folder { color: #57606a; text-transform: uppercase; font-size: 12px; letter-spacing: .04em; border-top: 1px solid #eaeef2; padding-top: 16px; }
+  h4 { font-size: 13px; text-transform: uppercase; letter-spacing: .03em; color: #57606a; margin: 16px 0 4px; }
+  code.url { display: block; background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 6px 10px; font: 13px/1.4 ui-monospace,Menlo,Consolas,monospace; overflow-wrap: anywhere; }
+  pre { background: #f6f8fa; border: 1px solid #d0d7de; border-radius: 6px; padding: 10px; overflow: auto; font: 12px/1.5 ui-monospace,Menlo,Consolas,monospace; white-space: pre-wrap; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  td { border-bottom: 1px solid #eaeef2; padding: 4px 8px; vertical-align: top; }
+  td.note { color: #57606a; font-style: italic; }
+  .desc { color: #57606a; }
+  .method { display: inline-block; font-weight: 700; font-size: 12px; padding: 2px 6px; border-radius: 4px; margin-right: 6px; color: #fff; }
+  .m-GET{background:#2da44e}.m-POST{background:#bf8700}.m-PUT{background:#0969da}.m-PATCH{background:#8250df}.m-DELETE{background:#cf222e}.m-HEAD,.m-OPTIONS{background:#57606a}
+  .example { margin: 8px 0; }
+  .status-2 { color: #2da44e; } .status-4, .status-5 { color: #cf222e; }
+  nav ul { columns: 2; }
+  nav a { color: #0969da; text-decoration: none; } nav a:hover { text-decoration: underline; }
+</style>
+</head><body>
+<h1>API Documentation</h1>
+<nav><ul>${toc}</ul></nav>
+<main>${sections}</main>
+</body></html>`;
+}
+
 // Builds the body for a proxied fetch from the request's bodyKind/reqBody,
 // as sent by buildRequestArgs() (js/send.js). Shared by /api/proxy and
 // /api/proxy-stream.
@@ -675,7 +882,7 @@ function gitRun(args, cwd) {
   });
 }
 
-const SYNC_EXCLUDES = new Set(['_volley/history.json', '_volley/tabs.json', '_volley/cookies.json']);
+const SYNC_EXCLUDES = new Set(['_volley/history.json', '_volley/tabs.json', '_volley/cookies.json', '_volley/monitor-runs.json']);
 
 function listJsonFiles(dir) {
   const results = [];
@@ -1066,6 +1273,113 @@ const server = http.createServer((req, res) => {
     clearCaptureLog();
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  if (u.pathname === '/api/monitors' && req.method === 'GET') {
+    const withRuns = monitors.map(m => ({ ...m, runs: monitorRuns[m.id] || [] }));
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ ok: true, monitors: withRuns }));
+    return;
+  }
+
+  if (u.pathname === '/api/monitors' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const b = JSON.parse(body || '{}');
+        if (!b.name || !b.collection) throw new Error('name and collection are required');
+        const m = {
+          id: crypto.randomUUID(),
+          name: b.name,
+          collection: b.collection,
+          folder: b.folder || null,
+          env: b.env || null,
+          intervalMinutes: Math.max(1, Math.round(Number(b.intervalMinutes)) || 5),
+          enabled: b.enabled !== false,
+        };
+        monitors.push(m);
+        saveMonitors();
+        scheduleMonitor(m);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, monitor: m }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (u.pathname === '/api/monitors/update' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const b = JSON.parse(body || '{}');
+        const m = monitors.find(x => x.id === b.id);
+        if (!m) throw new Error('Monitor not found');
+        if (b.name            !== undefined) m.name            = b.name;
+        if (b.collection      !== undefined) m.collection      = b.collection;
+        if (b.folder          !== undefined) m.folder          = b.folder || null;
+        if (b.env             !== undefined) m.env             = b.env || null;
+        if (b.intervalMinutes !== undefined) m.intervalMinutes = Math.max(1, Math.round(Number(b.intervalMinutes)));
+        if (b.enabled         !== undefined) m.enabled         = !!b.enabled;
+        saveMonitors();
+        scheduleMonitor(m);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, monitor: m }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (u.pathname === '/api/monitors/delete' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const { id } = JSON.parse(body || '{}');
+        unscheduleMonitor(id);
+        monitors = monitors.filter(x => x.id !== id);
+        delete monitorRuns[id];
+        saveMonitors();
+        saveMonitorRuns();
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (u.pathname === '/api/monitors/run' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', async () => {
+      try {
+        const { id } = JSON.parse(body || '{}');
+        const run = await runMonitor(id);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: true, run }));
+      } catch (err) {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ ok: false, error: err.message }));
+      }
+    });
+    return;
+  }
+
+  if (u.pathname === '/docs' && req.method === 'GET') {
+    const { cols } = loadData();
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end(buildDocsHtml(cols));
     return;
   }
 
@@ -1776,10 +2090,13 @@ async function shutdown(signal) {
   setTimeout(() => process.exit(0), 1000).unref();
 }
 
+loadMonitors();
+
 if (require.main === module) {
   server.listen(PORT, () => {
     log('INFO', `Volley running at http://localhost:${PORT}`);
     for (const addr of lanAddresses()) log('INFO', `  also available at http://${addr}:${PORT}`);
+    scheduleAllMonitors();
   });
   process.on('SIGINT',  () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
@@ -1792,6 +2109,8 @@ module.exports = {
   buildFetchBody, attachJarCookies,
   findMockMatch, createMockServer, startMockServer, stopMockServer, mockStatus,
   createCaptureServer, startCaptureServer, stopCaptureServer, captureStatus, clearCaptureLog, getCaptureLog,
+  loadMonitors, saveMonitors, scheduleMonitor, unscheduleMonitor, scheduleAllMonitors, runMonitor,
+  buildDocsHtml,
   getCliArg,
   wsAcceptKey, encodeWsFrame, WsFrameDecoder, wsConnectUpstream, WS_OP,
 };

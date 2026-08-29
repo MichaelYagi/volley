@@ -43,6 +43,8 @@
     <button onclick="openCookiesModal()" title="View and manage stored cookies">Cookies</button>
     <button onclick="openMockModal()" title="Serve canned responses for requests with mocking enabled">Mock Server<span id="mock-server-badge" class="tab-badge" style="display:none">●</span></button>
     <button onclick="openWebhooksModal()" title="Capture and inspect incoming requests — for testing local services calling each other">Webhooks<span id="webhooks-badge" class="tab-badge" style="display:none">●</span></button>
+    <button onclick="openMonitorsModal()" title="Schedule collections/folders to run automatically and track pass/fail over time">Monitors<span id="monitors-badge" class="tab-badge" style="display:none">●</span></button>
+    <button onclick="window.open('/docs','_blank')" title="Open the auto-generated API documentation page (always current — reads straight from saved data)">Docs</button>
     <div class="sep"></div>
     <span id="server-status" class="server-dot server-dot-online" title="Server online"></span>
     <span id="save-status" style="font-size:11px;color:var(--text-muted)">All changes saved</span>
@@ -60,6 +62,7 @@
         <button class="import-dropdown-item" onclick="closeExportDropdown();exportAll()">Volley</button>
         <button class="import-dropdown-item" onclick="closeExportDropdown();exportAllPostman()">Postman v2.1</button>
         <button class="import-dropdown-item" onclick="closeExportDropdown();exportAllCurl()">cURL commands</button>
+        <button class="import-dropdown-item" onclick="closeExportDropdown();exportDocs()">Documentation (HTML)</button>
       </div>
     </div>
     <div class="import-dropdown" id="import-dropdown">
@@ -342,6 +345,26 @@
   </div>
 </div>
 
+<!-- ── Monitors Modal ────────────────────────────────────────────────────── -->
+<div id="monitors-modal" class="modal-bg" style="display:none"
+     onclick="if(event.target===this)closeMonitorsModal()">
+  <div class="modal monitors-modal" onclick="event.stopPropagation()">
+    <h3>Monitors</h3>
+    <p class="muted">Schedule a collection or folder to run automatically on an interval, the same
+       way <code>cli.js</code> does — and see pass/fail history without leaving Volley.</p>
+    <div class="monitors-layout">
+      <div>
+        <button class="btn-primary" style="width:100%;margin-bottom:8px" onclick="newMonitorForm()">+ New Monitor</button>
+        <div id="monitors-list" class="monitors-list"></div>
+      </div>
+      <div id="monitors-detail" class="monitors-detail"></div>
+    </div>
+    <div class="modal-footer" style="margin-top:16px">
+      <button class="btn-primary" onclick="closeMonitorsModal()">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── About Modal ───────────────────────────────────────────────────────── -->
 <div id="about-modal" class="modal-bg" style="display:none"
      onclick="if(event.target===this)closeAboutModal()">
@@ -537,6 +560,7 @@ SOFTWARE.</pre>
 <script src="js/runner.js"></script>      <!-- collection runner                 -->
 <script src="js/mock.js"></script>        <!-- mock server modal                 -->
 <script src="js/webhooks.js"></script>    <!-- webhook capture modal             -->
+<script src="js/monitors.js"></script>    <!-- scheduled collection runs modal   -->
 <script src="js/settings.js"></script>      <!-- settings modal & feature flags    -->
 <script src="js/logs.js"></script>         <!-- server log viewer                 -->
 <script src="js/git.js"></script>          <!-- git sync: push/pull/conflicts      -->

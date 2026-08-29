@@ -64,10 +64,13 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 - [Collection Runner](#collection-runner)
   - [Data-driven runs (CSV/JSON)](#data-driven-runs-csvjson)
 - [CLI Runner](#cli-runner)
+- [Monitors](#monitors)
 - [Mock Server](#mock-server)
 - [Cookie Jar](#cookie-jar)
 - [Webhooks](#webhooks)
+- [API Documentation](#api-documentation)
 - [Tabs](#tabs)
+- [Changes Panel](#changes-panel)
 - [Export / Import](#export--import)
   - [Import cURL](#import-curl)
 - [Git Sync (experimental)](#git-sync-experimental)
@@ -99,16 +102,19 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 - **Pre-request & test scripts** — run JavaScript before a request is sent or after its response arrives, via a small `pm`-style API. Extract values into environment/global variables, assert on the response with `pm.test`/`pm.expect`, and see pass/fail results in a "Tests" tab.
 - **Collection Runner** — right-click a collection ("Run Collection") or a folder ("Run Folder") to send every request in it sequentially. Each request's pre-request/test scripts run as usual (sharing environment/global variables across the run, so values extracted by one request are available to the next), and results — status, timing, and test pass/fail counts — are shown live in a runner modal. Optionally attach a CSV or JSON data file before starting a run to repeat the whole run once per row, with each row's columns available as `{{variables}}` and via `pm.iterationData.get(key)`. Stop a run early with the "Stop" button.
 - **CLI runner** — run a collection or folder from the command line with `node cli.js <collection> [folder]`, exiting non-zero on any error/4xx/5xx response or failed test — handy for CI/CD pipelines. See [CLI Runner](#cli-runner).
+- **Monitors** — schedule a collection or folder to run automatically on an interval, right from the topbar's "Monitors" button — no external cron needed. Tracks pass/fail history per run. See [Monitors](#monitors).
 - **Request & collection descriptions** — give any request or collection a free-text description (a request's "Docs" tab, or a collection's right-click "Edit Description") to document what it does for anyone else working in the same `data/` folder.
 - **Comments** — leave timestamped, named comments on a request from its "Docs" tab — handy for leaving notes for teammates sharing the same `data/` folder.
 - **Saved response Examples** — after sending a request, click "Save as Example" above the response body to snapshot its status/headers/body under a name. Saved examples live on the request's "Examples" tab — view one to load it back into the response viewer, or delete it.
 - **Mock servers** — enable "Mock" on a request (its "Mock" tab) to define a canned status/headers/body/delay, then start the local mock server (topbar → "Mock Server") to serve every enabled mock on a chosen port. Routes are matched by method and path, with `:name` path segments matching anything (mirroring a request's `{{baseUrl}}/users/:id`-style URL).
 - **Cookie jar** — `Set-Cookie` responses are stored automatically and replayed on later requests to matching domains. View or clear stored cookies from the "Cookies" topbar button.
 - **Webhooks** — click "Webhooks" in the topbar to start a local listener that accepts any request on any method/path, always replies `200`, and logs what it received (method, path, headers, body, timestamp) — for seeing exactly what one local service sends another. See [Webhooks](#webhooks).
+- **API Documentation** — a server-rendered `/docs` page documenting every collection's requests (method, URL, params, headers, auth type, body, saved examples), always current since it reads straight from saved data — no separate "publish" step. Credentials are redacted. See [API Documentation](#api-documentation).
 - **Response viewer** — status, timing, size, collapsible JSON tree, raw body, response headers. The JSON tree is virtualized (only visible rows are in the DOM) and parsed off the main thread in a Web Worker, so large responses stay fast to render and scroll without freezing the tab.
 - **cURL** — every request shows a live curl command that updates as you edit, with one-click copy. Click **Edit** to edit the curl directly — change the method, URL, headers, or body in curl syntax and **Save** to apply it back to the request fields. **Import cURL** (under **Import ▾**) accepts one or many curl commands at once: paste a block or a whole bash script, and Volley creates the requests for you. See [Import cURL](#import-curl).
 - **Notes on params/headers** — annotate individual rows ("Dev key", "pagination cursor", etc.)
 - **Request history** — every sent request logged with method, status, and timing; click to replay
+- **Changes panel** — click "✎ Changes" in the sidebar to see every request you've edited since the app loaded (or since the last Git Sync pull), grouped by collection, with a field-by-field diff and a one-click Reset per request or for everything at once. See [Changes Panel](#changes-panel).
 - **Per-request tab memory** — remembers which tab (Params/Headers/Auth/Body/cURL) you last had open for each request
 - **CORS handling** — Volley tries a direct `fetch()` first; if the browser blocks it (CORS), the request is automatically retried through the local Node server, where CORS doesn't apply. SSE and Digest Auth always go through the server.
 - **Server status indicator** — a dot in the topbar shows whether the local server is reachable; coordinates across browser tabs via `BroadcastChannel` so only one tab polls at a time.
@@ -126,6 +132,8 @@ There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save
 volley/
 ├── server.js               — stdlib-only Node server: static files + API endpoints
 ├── cli.js                  — headless Collection Runner (CI/CD), see [CLI Runner](#cli-runner)
+├── lib/
+│   └── headless-runner.js  — shared headless-run core (vm sandbox + request runner), used by cli.js and server.js's Monitors scheduler
 ├── data/                   — gitignored; your collections, environments, history, and globals (plain JSON)
 ├── config/                 — gitignored; server-side config (git.json, logs.json)
 ├── volley-sync/             — gitignored; local git clone managed by Git Sync
@@ -154,6 +162,7 @@ volley/
     ├── runner.js           — Collection Runner (run a collection/folder, CSV/JSON data files, results modal)
     ├── mock.js             — Mock Server modal (build routes from requests with mocking enabled, start/stop)
     ├── webhooks.js         — Webhooks modal (local request-capture listener, start/stop, log)
+    ├── monitors.js         — Monitors modal (CRUD + run history over server.js's /api/monitors*)
     ├── settings.js         — Settings modal, feature flags (stored in localStorage)
     ├── logs.js             — Log viewer modal, SSE stream from /api/logs/stream
     ├── git.js              — Git Sync modal: push/pull/conflict resolution/auto-sync
@@ -170,6 +179,7 @@ All JS files share the global scope and load in order. `state.js` must be first 
 - **Requests are files**: `data/<Collection Name>/<Request Name>.json`
 - **Folders are not directories** — a request inside a Postman-style folder just has an extra `"folder": "<Folder Name>"` field; the layout on disk is always flat, one level deep.
 - **Environments, globals, history, open tabs, and cookies**: `data/_volley/envs.json`, `data/_volley/globals.json`, `data/_volley/history.json`, `data/_volley/tabs.json`, and `data/_volley/cookies.json`
+- **Monitors**: definitions in `data/_volley/monitors.json`, run history in `data/_volley/monitor-runs.json` — see [Monitors](#monitors)
 
 ### Request shape
 
@@ -412,6 +422,21 @@ node cli.js "My API" --env Staging --data rows.csv
 
 For each request, prints its method, name, status (or error), and elapsed time, plus `PASS`/`FAIL` lines for any test scripts, followed by a summary line. The process exits with code `1` if any request errored or returned a 4xx/5xx response, or if any test failed — `0` otherwise.
 
+## Monitors
+
+A monitor is a saved "run this collection/folder on a schedule" definition, executed by the running `server.js` process itself — no external cron, and no browser tab needs to stay open. It reuses the exact same headless run logic as [`cli.js`](#cli-runner) (`lib/headless-runner.js`), invoked in-process against the server's own port on an interval.
+
+Click **Monitors** in the topbar to open the modal:
+
+1. Click **+ New Monitor**, give it a name, and pick a **Collection** (and optionally a **Folder** to run instead of the whole collection).
+2. Optionally pick an **Environment** — leave it on "Active environment" to always use whatever's currently selected in the topbar.
+3. Set the **Interval (minutes)** and make sure **Enabled** is checked, then click **Create**.
+4. Click **Run Now** at any time for an immediate run without waiting for the schedule.
+
+Each monitor keeps its most recent runs (status, elapsed time, requests/tests passed) under **Recent runs** in its detail panel, and a colored dot next to its name in the list shows the outcome of its last run at a glance (green = passed, red = failed, grey = never run). A dot also lights up on the topbar **Monitors** button whenever any enabled monitor's last run failed.
+
+Monitor definitions live in `data/_volley/monitors.json` and sync via [Git Sync](#git-sync-experimental) like any other collection config; run history lives in `data/_volley/monitor-runs.json` and is excluded from sync, same as request history — see [Data storage](#data-storage-data).
+
 ## Mock Server
 
 Any request can act as a mock: open its **Mock** tab, check **Enable mock response for this request**, and set a status code, headers, delay (ms), and a response body. The tab shows the method + path (derived from the request's URL — `{{var}}` prefixes, host, and query string are stripped, e.g. `{{baseUrl}}/users/:id?x=1` → `/users/:id`) that the mock server will answer for.
@@ -442,9 +467,30 @@ Click **Clear** to wipe the log, or **Stop** to shut the listener down. A dot on
 
 Running inside **WSL2**? WSL2 only forwards `localhost` traffic from Windows into WSL2 — it doesn't expose WSL2's ports to your LAN by default, so a sender on another device won't reach the listener until you enable mirrored networking (Windows 11 22H2+) or add a manual `netsh` port forward. The in-app "Sender on another device? Read this first" note walks through both.
 
+## API Documentation
+
+`GET /docs` renders a static, self-contained HTML page documenting every collection — a lightweight alternative to Postman's published documentation. It's built server-side straight from saved `data/` state (not the browser's possibly-unsaved editor state), so there's no separate "publish" step and it's always current — just open it.
+
+Click **Docs** in the topbar to open it in a new tab. For each collection you get a table of contents plus, per request: method, URL, description, params, headers, auth type, body, and any saved [Examples](#saved-response-examples). Want a standalone file instead — to host on GitHub Pages, S3, or share directly — use **Export ▾ → Documentation (HTML)**, which downloads the same page as `volley-docs.html`. To share the live page with someone outside your machine, point a tunnel (e.g. `cloudflared tunnel --url http://localhost:5874`) at your running Volley instance.
+
+**Credentials are redacted.** The `Authorization` and `Cookie` header values, and every field on the Auth tab (tokens, passwords, client secrets, API keys), never appear — only the auth *type* is shown (e.g. "Bearer Token"). Everything else — including other header values, params, and the body — renders exactly as stored, same as Volley's other export formats. A hand-typed secret in some other header or in the body is **not** redacted; keep real secrets in `{{environment variables}}`, which are never part of a collection and so never appear in the generated docs.
+
 ## Tabs
 
 Opening a request from the sidebar opens it in a new tab (or focuses its existing tab if already open). Each tab keeps its own unsaved edits, response, and active sub-tab (Params/Headers/Auth/Body/cURL), so you can work on multiple requests side by side. Close a tab with its `×` button; closing the last tab returns to the "Select or create a request" empty state.
+
+## Changes Panel
+
+Click **✎ Changes** at the bottom of the sidebar to see every request that's been edited since a baseline snapshot was taken — on app load, and again after a Git Sync pull is applied — grouped by collection. A badge on the button shows how many requests have changed.
+
+Each entry shows a field-by-field diff: renamed/moved fields (name, method, URL) show old → new; params/headers/form-data show added/removed/changed/toggled rows; scripts, mock settings, description, and examples show a short note when they differ (their full content isn't diffed inline). Auth changes are flagged as "credentials modified" without showing the actual old/new secret values.
+
+Per request:
+
+- **Open** — jump to that request's tab.
+- **Reset** — revert just that request back to its snapshot.
+
+Or **Reset All** (top of the panel) to revert every changed request at once. Auto-save still runs as normal while the panel is open — a reset is itself a change that gets saved to disk like any other edit. Note this tracks changes *within the current session* (or since the last pull), not "unsaved to disk" — Volley auto-saves within a second of any edit, so there's no separate saved/unsaved distinction to show here.
 
 ## Export / Import
 
@@ -522,7 +568,7 @@ Enable it first in **⚙ Settings → Experimental → Git sync**, then click th
 - **Push** — copies `data/` into `volley-sync/`, commits, and pushes to the remote. Run this after making changes you want to share.
 - **Pull** — fetches the remote and compares it against `volley-sync/`'s last-known state. Changes that don't conflict with local edits are applied automatically; conflicting files go to a **conflict resolution modal** where you choose to keep local or take remote for each file, then click **Apply**.
 
-The files `_volley/history.json`, `_volley/tabs.json`, and `_volley/cookies.json` are excluded from sync — they're ephemeral local state that doesn't belong in a shared repo.
+The files `_volley/history.json`, `_volley/tabs.json`, `_volley/cookies.json`, and `_volley/monitor-runs.json` are excluded from sync — they're ephemeral local state that doesn't belong in a shared repo. `_volley/monitors.json` (the monitor *definitions* — name/collection/interval/etc.) syncs normally, same as your collections.
 
 ### Re-clone
 
@@ -579,6 +625,7 @@ Runs the test suite with Node's built-in test runner — no dependencies needed 
 - `test/server.test.js` — `sanitizeName`/`uniqueName`, `buildColsFromFiles`, the `saveData`/`loadData` round trip (including `globals.json`) against a temporary data directory (the real `data/` is never touched), `getCliArg` (`--data-dir`/`--port` parsing), and `findMockMatch`/`startMockServer`/`stopMockServer`/`mockStatus`
 - `test/server-http.test.js` — `/api/data`, `/api/save`, `/api/proxy`/`/api/proxy-stream` (raw, formdata including file uploads, urlencoded, binary bodies, SSE streaming, Digest auth, cookie jar, and unreachable upstreams), `/api/mock/start`/`/api/mock/status`/`/api/mock/stop`, the `/api/webhooks/start`/`/api/webhooks/status`/`/api/webhooks/log`/`/api/webhooks/stop` capture listener, the `/api/ws-proxy` WebSocket relay, the `/api/mcp-stdio` MCP stdio relay, OAuth2 callback handling, and static file serving, against a real server instance
 - `test/protocols-e2e.test.js` — end-to-end coverage of GraphQL bodies, OAuth2 token acquisition/refresh (Client Credentials & Authorization Code), SSE streaming, and the MCP Streamable HTTP transport, against a real `server.js` instance plus small local upstream servers, exercising the actual `js/send.js`/`js/mcp.js` code in a sandbox
+- `test/monitors.test.js` — `/api/monitors` CRUD, `/api/monitors/run` actually executing a saved collection against a local upstream and recording a pass/fail run, and `GET /docs` rendering collections/requests while redacting `Authorization`/`Cookie` header values and Auth-tab credentials, against a real server instance
 - `test/send.test.js` — SSE event-block parsing (`parseSseBlock`/`extractSseEvents`), run in a sandboxed copy of the global-scope frontend JS
 - `test/collections.test.js` — `parsePostman` and `mergeImportedData` (including collection descriptions) and `normalizeReq`'s defaults for description/comments/mock/examples, run in a sandboxed copy of the global-scope frontend JS
 - `test/request.test.js` — path variables, computed-headers preview, the KV editor (including bulk edit and form-data file rows), the binary body type, `{{variable}}` autocomplete (including global variable fallback and Collection Runner row data), `extractMockPath`, and the Docs/Examples/Mock tabs and badges, run in a sandboxed copy of the global-scope frontend JS

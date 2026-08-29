@@ -1,5 +1,18 @@
 # Changelog
 
+## v0.1.0-beta.3 — 2026-08-29
+
+### Documentation
+
+- Documented the **Changes Panel** (sidebar → "✎ Changes") — this shipped earlier but was missing from the README. Shows a field-by-field diff of every request edited since the app loaded (or since the last Git Sync pull), with per-request and Reset All revert.
+
+## v0.1.0-beta.2 — 2026-08-29
+
+### Added
+
+- **Monitors** — schedule a collection or folder to run automatically on an interval and track pass/fail history, without leaving Volley or setting up external cron. Runs headlessly, in-process, via the same runner `cli.js` uses (now shared as `lib/headless-runner.js`). Topbar → "Monitors".
+- **API Documentation** — a `GET /docs` page, server-rendered straight from saved `data/` state, documenting every collection's requests (method, URL, params, headers, auth type, body, saved examples). Always current, no separate publish step — point a tunnel at your Volley instance to share it. `Authorization`/`Cookie` header values and all Auth-tab credential fields are redacted; everything else renders as stored. Topbar → "Docs", or **Export ▾ → Documentation (HTML)** to download it as a standalone file.
+
 ## v0.1.0-beta.1 — 2026-08-28
 
 First beta. Published to npm as [`@michaelyagi/volley`](https://www.npmjs.com/package/@michaelyagi/volley) — install with `npx @michaelyagi/volley`, or keep cloning the repo and running `node server.js` as before.

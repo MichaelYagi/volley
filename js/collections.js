@@ -378,6 +378,26 @@ function exportAllPostman() {
   notify(`Downloading ${state.cols.length} Postman file${state.cols.length !== 1 ? 's' : ''}…`, 'success');
 }
 
+// Downloads the same server-rendered page served live at GET /docs (see
+// buildDocsHtml() in server.js) as a standalone file — for hosting the docs
+// somewhere else (GitHub Pages, S3, ...) instead of pointing a tunnel at
+// this Volley instance. Server-rendered from saved data/ state, not the
+// browser's possibly-unsaved editor state — save first if you've been editing.
+async function exportDocs() {
+  try {
+    const res  = await fetch('/docs');
+    if (!res.ok) throw new Error(`Server responded ${res.status}`);
+    const html = await res.text();
+    const blob = new Blob([html], { type: 'text/html' });
+    const a    = document.createElement('a');
+    a.href     = URL.createObjectURL(blob);
+    a.download = 'volley-docs.html';
+    a.click();
+  } catch (e) {
+    notify(`Failed to export docs: ${e.message}`, 'error');
+  }
+}
+
 function exportAllCurl() {
   const lines = ['#!/bin/bash', ''];
   let total   = 0;

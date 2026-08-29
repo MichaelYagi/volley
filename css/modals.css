@@ -120,6 +120,50 @@
 .webhook-header-value { color: var(--text); font-family: monospace; }
 .webhook-body         { background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; font-family: monospace; white-space: pre-wrap; word-break: break-all; max-height: 200px; overflow-y: auto; }
 
+/* ─── Monitors Modal ─────────────────────────────────────────────────────────── */
+.monitors-modal  { width: 680px; max-width: 92vw; }
+.monitors-layout {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 16px;
+  min-height: 320px;
+  max-height: 56vh;
+}
+.monitors-list   { border-right: 1px solid var(--bg-input); padding-right: 12px; overflow-y: auto; }
+.monitors-detail { overflow-y: auto; font-size: 12px; }
+
+.monitor-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  margin-bottom: 2px;
+  font-size: 11px;
+}
+.monitor-item:hover  { background: var(--bg-input); }
+.monitor-item.active { background: var(--bg-input); }
+.monitor-item-dot     { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.monitor-item-dot.ok      { background: var(--success); }
+.monitor-item-dot.fail    { background: var(--danger); }
+.monitor-item-dot.unknown { background: var(--text-muted); }
+.monitor-item-dot.disabled { opacity: .35; }
+.monitor-item-name    { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+
+.monitor-form label   { display: block; margin-top: 10px; margin-bottom: 3px; font-size: 11px; color: var(--text-muted); }
+.monitor-form input, .monitor-form select { width: 100%; }
+.monitor-form .row    { display: flex; gap: 10px; }
+.monitor-form .row > div { flex: 1; }
+.monitor-form .enabled-row { display: flex; align-items: center; gap: 6px; margin-top: 10px; }
+.monitor-form .enabled-row label { display: inline; margin: 0; }
+
+.monitor-runs      { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 10px; }
+.monitor-run-item  { display: flex; gap: 8px; padding: 3px 0; font-family: monospace; font-size: 11px; }
+.monitor-run-item .ok   { color: var(--success); }
+.monitor-run-item .fail { color: var(--danger); }
+.monitor-run-time  { color: var(--text-muted); flex-shrink: 0; }
+
 /* ─── Collection Runner Modal ───────────────────────────────────────────────── */
 .runner-modal  { min-width: 520px; max-width: 640px; }
 .runner-results { max-height: 50vh; overflow-y: auto; }

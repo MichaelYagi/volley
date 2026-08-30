@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mock Server — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>Mock Server</h1>
+<p class="lede">Serve canned responses for requests you mark as mocks — handy for developing a frontend against an API that doesn't exist yet, or demoing without a live backend.</p>
+
+<p>Any request can act as a mock: open its <strong>Mock</strong> tab, check <strong>Enable mock response for this request</strong>, and set a status code, headers, delay (ms), and a response body. The tab shows the method + path (derived from the request's URL — <code>{{var}}</code> prefixes, host, and query string are stripped, e.g. <code>{{baseUrl}}/users/:id?x=1</code> → <code>/users/:id</code>) that the mock server will answer for.</p>
+
+<p>Click <strong>Mock Server</strong> in the topbar to open the mock modal, which lists every request with mocking enabled across all collections. Pick a port (default <code>5875</code>) and click <strong>Start</strong> to launch a local HTTP server that answers each enabled mock at its method + path — <code>:name</code> path segments match any value, so <code>/users/:id</code> matches <code>/users/42</code>. Headers and body support <code>{{variable}}</code> interpolation against the active environment/globals. Click <strong>Stop</strong> to shut it down.</p>
+
+<p>The route list is a snapshot taken when you click <strong>Start</strong> — if you enable/edit a mock while the server is already running, click <strong>Stop</strong> then <strong>Start</strong> again to pick it up.</p>
+
+<div class="note">Matching is <strong>method + path only</strong> — incoming request headers, query strings, auth, and body are not checked, so any request to a matching method/path gets the same mocked response. The headers configured on the Mock tab are <em>response</em> headers (sent back with the reply, e.g. a custom <code>Content-Type</code>), not a requirement on the incoming request.</div>
+
+<div class="prev-next"><a href="monitors.html">← Monitors</a><a href="cookie-jar.html">Cookie Jar →</a></div>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Webhooks — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>Webhooks</h1>
+<p class="lede">Capture and inspect incoming requests — for testing one local service calling another before wiring it into the real destination.</p>
+
+<p>Click <strong>Webhooks</strong> in the topbar to open a listener for testing one local service calling another — point whatever sends the real webhook at Volley first to see exactly what it sends.</p>
+<ol>
+  <li>Set a <strong>Port</strong> (default <code>5876</code>) and click <strong>Start</strong>. Volley spawns a local HTTP server that accepts any method/path and always replies <code>200</code>.</li>
+  <li>Point the sending service at <code>http://localhost:&lt;port&gt;</code> (or <code>http://&lt;this machine's LAN IP&gt;:&lt;port&gt;</code> for a sender on another device — <code>localhost</code> only ever means "this same machine").</li>
+  <li>Each captured request appears in the list (method, path, time) as it arrives — the modal polls while open, so nothing needs a manual refresh. Click one to see its headers and body.</li>
+</ol>
+<p>Click <strong>Clear</strong> to wipe the log, or <strong>Stop</strong> to shut the listener down. A dot on the topbar <strong>Webhooks</strong> button shows when it's running.</p>
+
+<div class="note warn">Running inside <strong>WSL2</strong>? WSL2 only forwards <code>localhost</code> traffic from Windows into WSL2 — it doesn't expose WSL2's ports to your LAN by default, so a sender on another device won't reach the listener until you enable mirrored networking (Windows 11 22H2+) or add a manual <code>netsh</code> port forward. The in-app "Sender on another device? Read this first" note walks through both.</div>
+
+<div class="prev-next"><a href="cookie-jar.html">← Cookie Jar</a><a href="api-documentation.html">API Documentation →</a></div>
+</main>
+</div>
+</body>
+</html>

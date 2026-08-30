@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Realtime &amp; Streaming — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>Realtime &amp; Streaming Protocols</h1>
+<p class="lede">In addition to plain HTTP, the URL scheme determines whether a request is sent normally or switches the editor into a persistent-session mode with its own response panel.</p>
+
+<h2>Server-Sent Events (SSE)</h2>
+<p>No special URL scheme needed — send a request as normal (<code>GET</code> or otherwise) to an endpoint that responds with <code>Content-Type: text/event-stream</code>. Volley detects this and switches the response panel to a live-updating event log instead of a single body: each event shows its <code>event</code>/<code>id</code>/<code>retry</code> fields, the raw <code>data</code>, and the time it was received. Click <strong>Cancel</strong> (shown in place of Send while connected) to close the stream.</p>
+
+<h2>WebSocket</h2>
+<p>Set the request URL to <code>ws://</code> or <code>wss://</code>. The Send button becomes <strong>Connect</strong> — click it to open a relayed WebSocket connection (proxied through Volley's local server, so there's no browser CORS/origin restriction). Once connected:</p>
+<ul>
+  <li>The response panel shows a transcript of sent and received messages with timestamps.</li>
+  <li>A composer at the bottom lets you type a message and send it over the open connection.</li>
+  <li>The button becomes <strong>Disconnect</strong> — click it, or close the tab, to close the connection.</li>
+</ul>
+<p>Headers and auth configured on the request (e.g. a <code>Sec-WebSocket-Protocol</code> or <code>Authorization</code> header) are sent with the initial handshake.</p>
+
+<h2>MCP (Model Context Protocol)</h2>
+<p>Volley includes a small built-in MCP client for talking to MCP servers directly from a request tab. Pick the transport from the <strong>Protocol</strong> dropdown in the URL bar:</p>
+<ul>
+  <li><strong>MCP · Streamable HTTP</strong> — enter the server's endpoint as a normal URL (e.g. <code>https://mcp.deepwiki.com/mcp</code>). It's proxied server-side via the same mechanism as a normal request (no CORS issues).</li>
+  <li><strong>MCP · stdio</strong> — the URL field becomes a command line (e.g. <code>npx -y @some/mcp-server</code>). Volley spawns that command as a local child process and speaks newline-delimited JSON-RPC over its stdin/stdout.</li>
+</ul>
+<p>Either way, click <strong>Connect</strong> to perform the <code>initialize</code> handshake (Volley sends <code>initialize</code> then <code>notifications/initialized</code> automatically). Once connected:</p>
+<ul>
+  <li>The response panel shows the JSON-RPC message transcript (sent and received), plus the connected server's name/version once known.</li>
+  <li>A composer lets you pick a method (autocompleted from common MCP methods like <code>tools/list</code>, <code>tools/call</code>, <code>resources/list</code>, <code>resources/read</code>, <code>prompts/list</code>, <code>prompts/get</code>) and supply a JSON <code>params</code> object, then send it as a new JSON-RPC request. Volley wraps your method/params in the full <code>{"jsonrpc":"2.0","id":&lt;auto&gt;,...}</code> envelope.</li>
+  <li>Click <strong>Disconnect</strong>, or close the tab, to end the session.</li>
+</ul>
+<p>For example, after <code>tools/list</code> shows you a tool's name and input schema, call it with <code>tools/call</code> and a params object like:</p>
+<pre><code>{
+  "name": "read_wiki_contents",
+  "arguments": { "repoName": "owner/repo" }
+}</code></pre>
+<p>If you've scrolled up in the transcript, new messages arrive without yanking your scroll position — a "New response ↓" banner appears until you scroll to (or click it to jump to) the bottom.</p>
+
+<h2>CORS handling</h2>
+<p>Volley tries a direct <code>fetch()</code> first; if the browser blocks it (CORS), the request is automatically retried through the local Node server, where CORS doesn't apply. SSE and Digest Auth always go through the server.</p>
+
+<div class="prev-next"><a href="auth-types.html">← Auth Types</a><a href="scripts-and-testing.html">Scripts &amp; Tests →</a></div>
+</main>
+</div>
+</body>
+</html>

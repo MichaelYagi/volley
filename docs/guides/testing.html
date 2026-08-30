@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Testing &amp; Development — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>Testing &amp; Development</h1>
+<p class="lede">Pure HTML, CSS, and JavaScript on the front end, plus a single stdlib-only Node server. No framework, no bundler, no package manager. Edit any file and refresh.</p>
+
+<h2>Running the tests</h2>
+<pre><code>node --test</code></pre>
+<p>Runs the test suite with Node's built-in test runner — no dependencies needed (Node 18+). Covers:</p>
+<ul>
+  <li><code>test/server.test.js</code> — <code>sanitizeName</code>/<code>uniqueName</code>, <code>buildColsFromFiles</code>, the <code>saveData</code>/<code>loadData</code> round trip (including <code>globals.json</code>) against a temporary data directory (the real <code>data/</code> is never touched), <code>getCliArg</code> parsing, and <code>findMockMatch</code>/<code>startMockServer</code>/<code>stopMockServer</code>/<code>mockStatus</code></li>
+  <li><code>test/server-http.test.js</code> — <code>/api/data</code>, <code>/api/save</code>, <code>/api/proxy</code>/<code>/api/proxy-stream</code>, mock/webhooks endpoints, the WebSocket and MCP stdio relays, OAuth2 callback handling, and static file serving, against a real server instance</li>
+  <li><code>test/protocols-e2e.test.js</code> — end-to-end coverage of GraphQL bodies, OAuth2 token acquisition/refresh, SSE streaming, and the MCP Streamable HTTP transport, against a real <code>server.js</code> instance plus small local upstream servers</li>
+  <li><code>test/monitors.test.js</code> — <code>/api/monitors</code> CRUD, <code>/api/monitors/run</code> actually executing a saved collection, and <code>GET /docs</code> rendering with credential redaction</li>
+  <li><code>test/send.test.js</code>, <code>test/collections.test.js</code>, <code>test/request.test.js</code>, <code>test/runner.test.js</code>, <code>test/curl.test.js</code> — frontend logic, each run in a sandboxed copy of the global-scope JS</li>
+</ul>
+<p>Run <code>node --test --experimental-test-coverage</code> for a coverage report (covers <code>server.js</code>; the sandboxed frontend tests aren't included in coverage instrumentation).</p>
+
+<h2>No build step</h2>
+<p>There's genuinely nothing to build. All JS files share the global browser scope and are loaded as plain <code>&lt;script&gt;</code> tags in <code>index.html</code> — no modules, no imports, no exports, no transpilation. Load order matters; <code>state.js</code> comes first and <code>app.js</code> last. Edit any file, refresh the page, done.</p>
+
+<div class="prev-next"><a href="log-viewer-and-settings.html">← Log Viewer &amp; Settings</a><span></span></div>
+</main>
+</div>
+</body>
+</html>

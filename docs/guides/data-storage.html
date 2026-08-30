@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Storage — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>Data Storage</h1>
+<p class="lede"><code>data/</code> is gitignored — it holds your local collections, environments, and history as plain JSON files you fully own.</p>
+
+<p>Each machine running Volley has its own independent <code>data/</code> folder; there is no cloud sync and no shared state between computers. To move collections between machines, use <a href="export-import.html">Export / Import</a> — export on one machine and import on another. For continuous sharing, see <a href="getting-started.html#sharing">Sharing data/</a> in Getting Started, or <a href="git-sync.html">Git Sync</a> for a git-backed option.</p>
+
+<ul>
+  <li><strong>Collections are directories</strong>: <code>data/&lt;Collection Name&gt;/</code></li>
+  <li><strong>Requests are files</strong>: <code>data/&lt;Collection Name&gt;/&lt;Request Name&gt;.json</code></li>
+  <li><strong>Folders are not directories</strong> — a request inside a Postman-style folder just has an extra <code>"folder": "&lt;Folder Name&gt;"</code> field; the layout on disk is always flat, one level deep.</li>
+  <li><strong>Environments, globals, history, open tabs, and cookies</strong>: <code>data/_volley/envs.json</code>, <code>globals.json</code>, <code>history.json</code>, <code>tabs.json</code>, <code>cookies.json</code></li>
+  <li><strong>Monitors</strong>: definitions in <code>data/_volley/monitors.json</code>, run history in <code>data/_volley/monitor-runs.json</code> — see <a href="monitors.html">Monitors</a></li>
+</ul>
+
+<p>On save, Volley wipes and rewrites every collection directory from the current in-memory state — renames/deletions are handled by this wipe-and-rewrite, not by diffing.</p>
+
+<h2>Request shape</h2>
+<pre><code>{
+  "name": "Get user",
+  "method": "GET",
+  "url": "https://api.example.com/users/:userId",
+  "protocol": "http",
+  "description": "Fetches a single user by id.",
+  "params":  [{ "id": "x", "key": "include", "value": "profile", "enabled": true, "note": "" }],
+  "pathVars": [{ "id": "z", "key": "userId", "value": "123" }],
+  "headers": [{ "id": "y", "key": "Authorization", "value": "Bearer {{token}}", "enabled": true, "note": "Dev key" }],
+  "body": {
+    "type": "raw",
+    "raw": "{\"key\": \"value\"}",
+    "contentType": "json",
+    "formData": [],
+    "graphql": { "query": "", "variables": "" }
+  },
+  "auth": {
+    "type": "bearer",
+    "token": "{{token}}",
+    "username": "", "password": "", "apiKey": "", "apiValue": "",
+    "accessTokenUrl": "", "clientId": "", "clientSecret": "", "scope": "",
+    "cachedToken": "", "cachedExpiry": 0,
+    "jwtSecret": "", "jwtPayload": "{\"sub\":\"user123\"}"
+  },
+  "preRequestScript": "pm.environment.set('timestamp', Date.now());",
+  "testScript": "pm.test('status is 200', () =&gt; pm.expect(pm.response.status).toBe(200));",
+  "comments": [{ "id": "c1", "author": "Alice", "text": "Returns 404 for soft-deleted users.", "createdAt": 1718000000000 }],
+  "mock": { "enabled": false, "status": 200, "headers": [], "body": "{\"id\":123,\"name\":\"Ada\"}", "delay": 0 },
+  "examples": [{ "id": "e1", "name": "200 OK", "status": 200, "statusText": "OK", "headers": {}, "body": "{\"id\":123}", "bodyType": "json", "createdAt": 1718000000000 }]
+}</code></pre>
+<p>Collections also carry a <code>"description"</code> field, set via right-click → "Edit Description" on a collection.</p>
+
+<h3>Form-data files &amp; binary bodies</h3>
+<p>A form-data body's <code>formData</code> rows can be files instead of plain text values, and a <code>"binary"</code> body type sends a raw file as the request body:</p>
+<pre><code>{
+  "body": {
+    "type": "formdata",
+    "formData": [
+      { "id": "a", "key": "name",   "value": "volley",  "enabled": true, "type": "text" },
+      { "id": "b", "key": "upload", "enabled": true,   "type": "file", "fileName": "photo.png", "fileSize": 12345, "fileMimeType": "image/png", "fileData": "&lt;base64&gt;" }
+    ]
+  }
+}</code></pre>
+<pre><code>{
+  "body": {
+    "type": "binary",
+    "fileName": "report.pdf", "fileSize": 98765, "binaryMimeType": "application/pdf", "fileData": "&lt;base64&gt;"
+  }
+}</code></pre>
+<p>File contents (<code>fileData</code>) are stored as base64 in the request's saved JSON, sent to the server as part of <code>/api/proxy</code>'s body, and reassembled into a multipart <code>Blob</code>/raw <code>Buffer</code> server-side.</p>
+
+<h3>GraphQL bodies</h3>
+<p>A <code>"graphql"</code> body type sends a <code>POST</code> (or whatever method the request uses) with a JSON body of <code>{ "query": ..., "variables": ... }</code>, and adds a <code>Content-Type: application/json</code> header automatically (unless you've set your own or disabled it):</p>
+<pre><code>{
+  "body": {
+    "type": "graphql",
+    "graphql": {
+      "query": "query GetUser($id: ID!) { user(id: $id) { id name } }",
+      "variables": "{\"id\": \"{{userId}}\"}"
+    }
+  }
+}</code></pre>
+<p>Both <code>query</code> and <code>variables</code> support <code>{{variable}}</code> interpolation; <code>variables</code> is parsed as JSON when the request is sent.</p>
+
+<div class="prev-next"><a href="getting-started.html">← Getting Started</a><a href="environment-variables.html">Environment Variables →</a></div>
+</main>
+</div>
+</body>
+</html>

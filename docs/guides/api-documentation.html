@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API Documentation — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>API Documentation</h1>
+<p class="lede">A server-rendered <code>/docs</code> page documenting every collection's requests — a lightweight alternative to Postman's published documentation.</p>
+
+<p><code>GET /docs</code> renders a static, self-contained HTML page documenting every collection. It's built server-side straight from saved <code>data/</code> state (not the browser's possibly-unsaved editor state), so there's no separate "publish" step and it's always current — just open it.</p>
+
+<p>Click <strong>Docs</strong> in the topbar to open it in a new tab. For each collection you get a table of contents plus, per request: method, URL, description, params, headers, auth type, body, and any saved examples. Want a standalone file instead — to host on GitHub Pages, S3, or share directly — use <strong>Export ▾ → Documentation (HTML)</strong>, which downloads the same page as <code>volley-docs.html</code>. To share the live page with someone outside your machine, point a tunnel (e.g. <code>cloudflared tunnel --url http://localhost:5874</code>) at your running Volley instance.</p>
+
+<div class="note"><strong>Credentials are redacted.</strong> The <code>Authorization</code> and <code>Cookie</code> header values, and every field on the Auth tab (tokens, passwords, client secrets, API keys), never appear — only the auth <em>type</em> is shown (e.g. "Bearer Token"). Everything else — including other header values, params, and the body — renders exactly as stored, same as Volley's other export formats. A hand-typed secret in some other header or in the body is <strong>not</strong> redacted; keep real secrets in <code>{{environment variables}}</code>, which are never part of a collection and so never appear in the generated docs.</div>
+
+<div class="prev-next"><a href="webhooks.html">← Webhooks</a><a href="tabs-and-changes.html">Tabs &amp; Changes Panel →</a></div>
+</main>
+</div>
+</body>
+</html>

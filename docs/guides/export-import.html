@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Export / Import — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>Export / Import</h1>
+<p class="lede">Move collections between machines, share with a Postman-using teammate, or bulk-import from curl.</p>
+
+<h2>Export</h2>
+<p>The <strong>Export ▾</strong> dropdown (topbar) offers:</p>
+<ul>
+  <li><strong>Volley</strong> — downloads <code>volley-export.json</code> containing all collections, folders, requests, and environments. This is the format Import expects for the full round-trip. History is excluded — it's local clutter, not something worth sharing.</li>
+  <li><strong>Postman v2.1</strong> — downloads one <code>.postman_collection.json</code> file per collection (one download per collection). Useful for sharing with teammates on Postman.</li>
+  <li><strong>cURL commands</strong> — downloads <code>volley-export.sh</code>, a bash-compatible text file with every request rendered as a named <code>curl</code> command. <code>{{variable}}</code> placeholders are preserved as-is. Requests are grouped by collection, with folder membership noted in the name (<code># Folder / Request</code>). This file can be pasted straight back into <strong>Import ▾ → Import cURL</strong>.</li>
+  <li><strong>Documentation (HTML)</strong> — downloads the same page served at <code>/docs</code> as a standalone file. See <a href="api-documentation.html">API Documentation</a>.</li>
+</ul>
+<p>A single collection can also be exported on its own via its right-click menu, as either a Volley JSON file (<strong>Export JSON</strong>) or a Postman v2.1.0 collection (<strong>Export as Postman</strong>).</p>
+
+<h2>Import</h2>
+<p>The <strong>Import ▾</strong> dropdown offers three ways to get data in:</p>
+<ul>
+  <li><strong>From file</strong> — pick a local <code>.json</code> file</li>
+  <li><strong>From URL</strong> — enter a URL; Volley's server fetches it (so CORS and auth headers on the remote server are not an obstacle) and feeds the result into the same import pipeline</li>
+  <li><strong>Import cURL</strong> — paste curl commands directly; see below</li>
+</ul>
+<p>From file and From URL accept:</p>
+<ul>
+  <li>A Volley export (<code>{ "cols": [...], "envs": [...] }</code>) — opens an import preview modal before anything is applied (see below)</li>
+  <li>A Postman v2.x collection — added as a new collection; any collection-level Postman variables are imported as an environment named after the collection</li>
+  <li>A Postman environment export — merged into a matching (or newly created) environment by name; new vars are added and changed vars are updated</li>
+</ul>
+
+<h3>Volley import preview</h3>
+<p>When importing a Volley export, a preview modal lists every request that would change, grouped by collection, before anything is written:</p>
+<ul>
+  <li><strong>New</strong> — the request doesn't exist locally; will be added</li>
+  <li><strong>Changed</strong> — the request exists but differs from the imported version; will replace the local copy</li>
+  <li><strong>Identical</strong> — not shown; silently skipped</li>
+</ul>
+<p>Every item is checked by default. Uncheck any you want to leave as-is, then click <strong>Import</strong> to apply. <strong>Cancel</strong> closes the modal with no changes made. The <strong>Overwrite all</strong> checkbox at the top checks every item at once. Environment variables in the export are always synced automatically regardless of which requests you check.</p>
+
+<h2 id="import-curl">Import cURL</h2>
+<p><strong>Import ▾ → Import cURL</strong> creates one or more requests from curl commands you paste in.</p>
+<ol>
+  <li>Pick a collection from the dropdown — existing collections are listed; choose <strong>New collection…</strong> to create one.</li>
+  <li>Paste curl commands into the textarea.</li>
+  <li>Click <strong>Preview</strong> to see what will be imported.</li>
+  <li>Click <strong>Import</strong> to add the requests.</li>
+</ol>
+<p><strong>Format</strong> — the importer accepts a raw paste with no special formatting required:</p>
+<ul>
+  <li>Multiple curl commands can be separated by blank lines, placed back-to-back with no separator, or separated only by a <code># comment</code> — all three work.</li>
+  <li>A <code># Name</code> comment immediately before a curl becomes that request's name. This is bash-compatible: pasting a real bash script with <code># comment</code> lines before each curl works naturally.</li>
+  <li>Shebangs (<code>#!/bin/bash</code>), variable assignments, <code>echo</code> calls, and other non-curl lines are silently skipped.</li>
+  <li>When no <code># comment</code> is present, the request is named from the URL: the path for non-root URLs, or the hostname without <code>www.</code> for root URLs.</li>
+  <li>Duplicate names within the target collection are auto-suffixed (<code> (2)</code>, <code> (3)</code>, …).</li>
+</ul>
+<p><strong>Merging</strong> — if the chosen collection already exists, the imported requests are added to it. If not, a new collection is created at the top of the sidebar.</p>
+<p><strong>Shell variables</strong> (<code>$TOKEN</code>, <code>${BASE_URL}</code>) appear as literals in the imported request — they're not resolved. Replace them with Volley <code>{{variables}}</code> or literal values after import.</p>
+<p>The <strong>Edit</strong> button on the cURL tab of any imported request lets you edit the curl directly and save it back to the request fields — so importing a curl is just the starting point, not a one-time migration.</p>
+
+<div class="prev-next"><a href="tabs-and-changes.html">← Tabs &amp; Changes Panel</a><a href="git-sync.html">Git Sync →</a></div>
+</main>
+</div>
+</body>
+</html>

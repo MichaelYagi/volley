@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Git Sync — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>Git Sync <span style="color:var(--text-muted);font-weight:400;font-size:16px">(experimental)</span></h1>
+<p class="lede">Push and pull your collections against a remote git repository you own — a private GitHub repo, a self-hosted Gitea instance, anything with an HTTPS git remote.</p>
+
+<p>Your <code>data/</code> folder is never itself a git repo; instead Volley maintains a separate local clone (<code>volley-sync/</code>) as a bridge. Enable it first in <strong>⚙ Settings → Experimental → Git sync</strong>, then click the <strong>Git</strong> button that appears in the topbar.</p>
+
+<h2>Setup</h2>
+<ol>
+  <li><strong>Remote URL</strong> — the HTTPS URL of your collections repo (e.g. <code>https://github.com/you/my-collections</code>).</li>
+  <li><strong>Personal Access Token</strong> — required for private repos and for push. For GitHub fine-grained PATs: grant <strong>Contents (read &amp; write)</strong> and <strong>Metadata (read)</strong>. Leave blank for a public read-only repo.</li>
+  <li><strong>Branch</strong> — defaults to <code>main</code>.</li>
+  <li>Click <strong>Save</strong>, then <strong>Connect</strong> to clone the remote into <code>volley-sync/</code> and populate <code>data/</code> from it.</li>
+</ol>
+
+<h2>Push / Pull</h2>
+<ul>
+  <li><strong>Push</strong> — copies <code>data/</code> into <code>volley-sync/</code>, commits, and pushes to the remote. Run this after making changes you want to share.</li>
+  <li><strong>Pull</strong> — fetches the remote and compares it against <code>volley-sync/</code>'s last-known state. Changes that don't conflict with local edits are applied automatically; conflicting files go to a conflict resolution modal where you choose to keep local or take remote for each file, then click <strong>Apply</strong>.</li>
+</ul>
+<p>The files <code>_volley/history.json</code>, <code>_volley/tabs.json</code>, <code>_volley/cookies.json</code>, and <code>_volley/monitor-runs.json</code> are excluded from sync — they're ephemeral local state that doesn't belong in a shared repo. <code>_volley/monitors.json</code> (the monitor <em>definitions</em>) syncs normally, same as your collections.</p>
+
+<h2>Re-clone</h2>
+<p>If your local <code>data/</code> gets into a bad state, <strong>Re-clone</strong> (the same Connect button when already connected) wipes <code>data/</code> and repopulates it from the remote. Push any unsaved work first.</p>
+<p>If the remote repo contains a single Volley export file (<code>{ "cols": [...] }</code>), Re-clone detects this and expands it into the normal directory structure automatically — so pointing Volley at an existing export repo works out of the box.</p>
+
+<h2>Auto-sync</h2>
+<p>Enable <strong>Auto-sync</strong> in the Git modal and set an interval (default 5 minutes). Volley will push then pull on that schedule. If the pull reveals conflicts with remote changes, a notification appears prompting you to open the Git modal to resolve them. Cross-tab coordination via <code>localStorage</code> ensures only one open browser tab syncs per interval.</p>
+
+<div class="prev-next"><a href="export-import.html">← Export / Import</a><a href="log-viewer-and-settings.html">Log Viewer &amp; Settings →</a></div>
+</main>
+</div>
+</body>
+</html>

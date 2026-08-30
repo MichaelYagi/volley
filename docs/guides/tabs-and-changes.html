@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tabs &amp; Changes Panel — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>Tabs &amp; Changes Panel</h1>
+<p class="lede">Multi-tab editing, and a session-wide diff of everything you've touched.</p>
+
+<h2>Tabs</h2>
+<p>Opening a request from the sidebar opens it in a new tab (or focuses its existing tab if already open). Each tab keeps its own unsaved edits, response, and active sub-tab (Params/Headers/Auth/Body/cURL), so you can work on multiple requests side by side. Close a tab with its <code>×</code> button; closing the last tab returns to the "Select or create a request" empty state.</p>
+
+<h2>Changes Panel</h2>
+<p>Click <strong>✎ Changes</strong> at the bottom of the sidebar to see every request that's been edited since a baseline snapshot was taken — on app load, and again after a <a href="git-sync.html">Git Sync</a> pull is applied — grouped by collection. A badge on the button shows how many requests have changed.</p>
+
+<p>Each entry shows a field-by-field diff: renamed/moved fields (name, method, URL) show old → new; params/headers/form-data show added/removed/changed/toggled rows; scripts, mock settings, description, and examples show a short note when they differ (their full content isn't diffed inline). Auth changes are flagged as "credentials modified" without showing the actual old/new secret values.</p>
+
+<p>Per request:</p>
+<ul>
+  <li><strong>Open</strong> — jump to that request's tab.</li>
+  <li><strong>Reset</strong> — revert just that request back to its snapshot.</li>
+</ul>
+<p>Or <strong>Reset All</strong> (top of the panel) to revert every changed request at once. Auto-save still runs as normal while the panel is open — a reset is itself a change that gets saved to disk like any other edit.</p>
+
+<div class="note">This tracks changes <em>within the current session</em> (or since the last pull), not "unsaved to disk" — Volley auto-saves within a second of any edit, so there's no separate saved/unsaved distinction to show here.</div>
+
+<div class="prev-next"><a href="api-documentation.html">← API Documentation</a><a href="export-import.html">Export / Import →</a></div>
+</main>
+</div>
+</body>
+</html>

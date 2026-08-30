@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Environment Variables — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>Environment Variables</h1>
+<p class="lede">Use <code>{{variable}}</code> placeholders anywhere in a request's URL, params, headers, or body — they're resolved against the active environment when the request is sent.</p>
+
+<ol>
+  <li>Click <strong>Manage Env</strong> in the topbar to open the environment editor.</li>
+  <li>Add a variable, e.g. <code>baseUrl</code> = <code>https://api.example.com</code> and <code>token</code> = <code>your-dev-token</code>.</li>
+  <li>Pick that environment from the dropdown next to <strong>Manage Env</strong>.</li>
+  <li>In a request, set the URL to <code>{{baseUrl}}/users/{{userId}}</code> and add a header <code>Authorization: Bearer {{token}}</code>.</li>
+</ol>
+<p><code>{{userId}}</code> would come from another environment variable, or you can leave params un-interpolated for ones you fill in per-request. Switching environments from the topbar dropdown instantly changes what every <code>{{...}}</code> placeholder resolves to — handy for flipping between dev/staging/prod without editing requests.</p>
+
+<h2 id="global-variables">Global variables</h2>
+<p>The <strong>Globals</strong> entry in <strong>Manage Env</strong> (above your list of environments) holds variables that aren't tied to any one environment. When a <code>{{variable}}</code> placeholder isn't found in the active environment, Volley falls back to a matching global variable before leaving it un-interpolated. Use globals for values that are the same everywhere (an API key, a shared account id) so you don't have to duplicate them into every environment.</p>
+
+<h2><code>{{variable}}</code> autocomplete</h2>
+<p>Type <code>{{</code> in the URL bar, any params/headers/form-data row, the raw body editor, or an auth field, and a dropdown suggests matching variable names from the active environment and globals. Filter by typing, navigate with the arrow keys, and accept with <kbd>Tab</kbd>/<kbd>Enter</kbd> (or click) to insert <code>{{varName}}</code>.</p>
+
+<h2>Saving response values as variables</h2>
+<p>After sending a request, expand the JSON tree in the response viewer and hover over any leaf value (string, number, boolean, null). A <code>→{{}}</code> button appears — click it to save that value into the active environment under a variable name you choose. The same thing can be done from a test script with <code>pm.environment.set(...)</code> — see <a href="scripts-and-testing.html">Scripts &amp; Tests</a>.</p>
+
+<div class="prev-next"><a href="data-storage.html">← Data Storage</a><a href="request-editing.html">Request Editing →</a></div>
+</main>
+</div>
+</body>
+</html>

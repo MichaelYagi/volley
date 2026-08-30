@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monitors — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>Monitors</h1>
+<p class="lede">Schedule a collection or folder to run automatically on an interval and track pass/fail history — no external cron needed.</p>
+
+<p>A monitor is a saved "run this collection/folder on a schedule" definition, executed by the running <code>server.js</code> process itself — no external cron, and no browser tab needs to stay open. It reuses the exact same headless run logic as <a href="collection-runner.html">the CLI Runner</a> (<code>lib/headless-runner.js</code>), invoked in-process against the server's own port on an interval.</p>
+
+<p>Click <strong>Monitors</strong> in the topbar to open the modal:</p>
+<ol>
+  <li>Click <strong>+ New Monitor</strong>, give it a name, and pick a <strong>Collection</strong> (and optionally a <strong>Folder</strong> to run instead of the whole collection).</li>
+  <li>Optionally pick an <strong>Environment</strong> — leave it on "Active environment" to always use whatever's currently selected in the topbar.</li>
+  <li>Set the <strong>Interval (minutes)</strong> and make sure <strong>Enabled</strong> is checked, then click <strong>Create</strong>.</li>
+  <li>Click <strong>Run Now</strong> at any time for an immediate run without waiting for the schedule.</li>
+</ol>
+
+<p>Each monitor keeps its most recent runs (status, elapsed time, requests/tests passed) under <strong>Recent runs</strong> in its detail panel, and a colored dot next to its name in the list shows the outcome of its last run at a glance (green = passed, red = failed, grey = never run). A dot also lights up on the topbar <strong>Monitors</strong> button whenever any enabled monitor's last run failed.</p>
+
+<p>Monitor definitions live in <code>data/_volley/monitors.json</code> and sync via <a href="git-sync.html">Git Sync</a> like any other collection config; run history lives in <code>data/_volley/monitor-runs.json</code> and is excluded from sync, same as request history — see <a href="data-storage.html">Data Storage</a>.</p>
+
+<div class="prev-next"><a href="collection-runner.html">← Collection Runner &amp; CLI</a><a href="mock-server.html">Mock Server →</a></div>
+</main>
+</div>
+</body>
+</html>

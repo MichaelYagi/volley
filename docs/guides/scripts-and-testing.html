@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scripts &amp; Tests — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>Pre-request &amp; Test Scripts</h1>
+<p class="lede">Each request has a Scripts tab with two editors: a pre-request script, run just before the request is sent, and a test script, run after the response arrives. Both are plain JavaScript with access to a small <code>pm</code> object, similar to Postman's sandbox.</p>
+
+<h2><code>pm</code> API</h2>
+<ul>
+  <li><code>pm.environment.get(key)</code> — read a variable from the active environment</li>
+  <li><code>pm.environment.set(key, value)</code> — create or update a variable in the active environment</li>
+  <li><code>pm.environment.unset(key)</code> — remove a variable</li>
+  <li><code>pm.globals.get(key)</code> / <code>pm.globals.set(key, value)</code> / <code>pm.globals.unset(key)</code> — same, but for <a href="environment-variables.html#global-variables">global variables</a> (always accessible regardless of active environment)</li>
+  <li><code>pm.iterationData.get(key)</code> — read a column from the attached data file; always returns <code>undefined</code> outside a <a href="collection-runner.html#data-driven-runs">data-driven run</a> (read-only)</li>
+  <li><code>pm.response.status</code> / <code>pm.response.statusText</code> — response status (test scripts only)</li>
+  <li><code>pm.response.headers</code> — response headers object (test scripts only)</li>
+  <li><code>pm.response.responseTime</code> — elapsed time in ms (test scripts only)</li>
+  <li><code>pm.response.json()</code> — parse the response body as JSON (test scripts only)</li>
+  <li><code>pm.response.text()</code> — raw response body as a string (test scripts only)</li>
+  <li><code>pm.test(name, fn)</code> — register a named test; <code>fn</code> throwing marks it failed</li>
+  <li><code>pm.expect(value)</code> — chainable matchers: <code>.toBe()</code>, <code>.toEqual()</code>, <code>.toBeTruthy()</code>, <code>.toBeFalsy()</code>, <code>.toBeDefined()</code>, <code>.toBeNull()</code>, <code>.toContain()</code>, <code>.toHaveProperty()</code>, <code>.toBeGreaterThan()</code>, <code>.toBeLessThan()</code>, plus <code>.not</code> to negate any of them</li>
+</ul>
+
+<h3>Example: pre-request script</h3>
+<p>Set a fresh timestamp on every send:</p>
+<pre><code>pm.environment.set('timestamp', Date.now());</code></pre>
+
+<h3>Example: test script</h3>
+<p>Assert on the response and pull a value into an environment variable for later requests:</p>
+<pre><code>pm.test('status is 200', () =&gt; {
+  pm.expect(pm.response.status).toBe(200);
+});
+
+pm.test('response is not an error', () =&gt; {
+  pm.expect(pm.response.json()).not.toHaveProperty('error');
+});
+
+pm.environment.set('userId', pm.response.json().id);</code></pre>
+
+<p>Test results show up in a <strong>Tests</strong> tab in the response panel, with a pass/fail count badge. Scripts that throw outside of <code>pm.test()</code> (a syntax error, etc.) show up as a single failed test.</p>
+
+<div class="prev-next"><a href="realtime-protocols.html">← Realtime &amp; Streaming</a><a href="collection-runner.html">Collection Runner &amp; CLI →</a></div>
+</main>
+</div>
+</body>
+</html>

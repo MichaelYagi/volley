@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Auth Types — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>Auth Types</h1>
+<p class="lede">Configure auth on the Auth tab of a request.</p>
+
+<table>
+<tr><th>Type</th><th>What it does</th></tr>
+<tr><td><strong>Bearer Token</strong></td><td>Sets <code>Authorization: Bearer &lt;token&gt;</code>. Token field supports <code>{{variables}}</code>.</td></tr>
+<tr><td><strong>Basic Auth</strong></td><td>Sets <code>Authorization: Basic &lt;base64(username:password)&gt;</code>.</td></tr>
+<tr><td><strong>API Key</strong></td><td>Adds a custom header (or query param) with a key/value you choose.</td></tr>
+<tr><td><strong>OAuth 2.0 — Client Credentials</strong></td><td>Set Access Token URL, Client ID, Client Secret, and optionally Scope. Click Get Access Token to fetch and cache a token, or just hit Send — Volley fetches one automatically if none is cached (or the cached one has expired).</td></tr>
+<tr><td><strong>OAuth 2.0 — Password Grant</strong></td><td>Same as above, plus Username/Password, sent with <code>grant_type=password</code>.</td></tr>
+<tr><td><strong>OAuth 2.0 — Authorization Code</strong></td><td>Set Authorization URL, Access Token URL, Client ID, and (optionally, if not using PKCE) Client Secret. Click Get Access Token (or hit Send) to open the provider's login page in a popup; Volley's local server handles the <code>/api/oauth/callback</code> redirect, exchanges the code for a token (with PKCE by default), and caches it like the other OAuth2 grants.</td></tr>
+<tr><td><strong>Digest Auth</strong></td><td>Set Username/Password. Volley sends the request, and if the server responds with a <code>WWW-Authenticate: Digest</code> challenge, transparently retries with the computed digest response — no manual nonce handling needed.</td></tr>
+<tr><td><strong>JWT Bearer (HS256)</strong></td><td>Set a Secret and a JSON payload (e.g. <code>{"sub":"user123"}</code>). Volley signs a fresh HS256 JWT at send time, adding <code>iat</code>/<code>exp</code> (1 hour) automatically if you don't specify them, and sends it as <code>Authorization: Bearer &lt;jwt&gt;</code>.</td></tr>
+</table>
+
+<p>For OAuth2, the fetched token is cached on the request (<code>cachedToken</code>/<code>cachedExpiry</code>) and reused until it expires. The resulting <code>Authorization: Bearer &lt;token&gt;</code> header is shown read-only under "Auto-generated" on the Headers tab (uncheck it there to omit it from the request).</p>
+
+<div class="prev-next"><a href="request-editing.html">← Request Editing</a><a href="realtime-protocols.html">Realtime &amp; Streaming →</a></div>
+</main>
+</div>
+</body>
+</html>

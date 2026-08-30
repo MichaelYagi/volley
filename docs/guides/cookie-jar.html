@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cookie Jar — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>Cookie Jar</h1>
+<p class="lede">Set-Cookie responses are stored automatically and replayed on later requests to matching domains — no manual copying of session cookies between requests.</p>
+
+<p>Volley keeps a server-side cookie jar at <code>data/_volley/cookies.json</code>. Whenever a response includes <code>Set-Cookie</code> headers, the cookies are parsed and stored automatically; on later requests, any stored cookie whose domain, path, expiry, and <code>Secure</code> flag match the request URL is sent back in the <code>Cookie</code> header.</p>
+
+<p>Click <strong>Cookies</strong> in the topbar to open the cookie jar modal, where you can see every stored cookie's name, value, domain/path, and expiry, delete individual cookies, or clear the jar entirely.</p>
+
+<p>Any cookie that would be attached to the current request also shows up as a read-only <code>Cookie</code> row in the Headers tab's "Auto-generated" section — see <a href="request-editing.html">Request Editing</a> — so you can see exactly what will be sent.</p>
+
+<div class="prev-next"><a href="mock-server.html">← Mock Server</a><a href="webhooks.html">Webhooks →</a></div>
+</main>
+</div>
+</body>
+</html>

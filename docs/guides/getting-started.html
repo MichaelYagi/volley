@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Getting Started — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>Getting Started</h1>
+<p class="lede">Volley is a small Node server and some plain HTML/JS/CSS — clone it, run one command, and you have a full-featured local HTTP client.</p>
+
+<h2>Running it</h2>
+<p>Volley needs its local server — it's what reads/writes <code>data/</code> and proxies outbound requests.</p>
+<pre><code>node server.js</code></pre>
+<p>Then open <code>http://localhost:5874</code>. No <code>npm install</code>, no dependencies — <code>server.js</code> only uses Node's standard library.</p>
+
+<h2>Install via npm</h2>
+<p>Prefer not to clone the repo? It's also published on npm:</p>
+<pre><code>npx @michaelyagi/volley</code></pre>
+<div class="note warn"><code>npx</code> runs it from a temporary cache, so pass <code>--data-dir=&lt;path&gt;</code> (see below) to keep your collections in a permanent folder across runs — otherwise a fresh <code>npx</code> invocation may start from an empty <code>data/</code>.</div>
+
+<h2>Options</h2>
+<p>Use a different port — pass <code>--port=&lt;port&gt;</code> or set the <code>PORT</code> env var:</p>
+<pre><code>node server.js --port=3000</code></pre>
+
+<h3 id="sharing">Sharing <code>data/</code> (local-network sync)</h3>
+<p>By default Volley reads/writes <code>data/</code> next to <code>server.js</code>. Pass <code>--data-dir=&lt;path&gt;</code> (or set <code>VOLLEY_DATA_DIR</code>) to point it at a different folder — e.g. a Dropbox/Google Drive folder, a network share, or a separate git repo — so multiple machines or teammates can work from the same collections, environments, and history:</p>
+<pre><code>node server.js --data-dir=/path/to/shared/volley-data</code></pre>
+<p>There's no real-time sync or accounts — it's the same wipe-and-rewrite-on-save model described in <a href="data-storage.html">Data Storage</a>, just pointed at a folder that something else (Dropbox, a sync tool, git) keeps in sync between machines. Avoid running two instances against the same <code>data/</code> at the same time, since the last save wins.</p>
+
+<h2>Project structure</h2>
+<pre><code>volley/
+├── server.js               — stdlib-only Node server: static files + API endpoints
+├── cli.js                  — headless Collection Runner (CI/CD)
+├── lib/
+│   └── headless-runner.js  — shared headless-run core, used by cli.js and Monitors
+├── data/                   — gitignored; your collections, environments, history
+├── config/                 — gitignored; server-side config (git.json, logs.json)
+├── volley-sync/             — gitignored; local git clone managed by Git Sync
+├── index.html              — markup only, no inline JS or CSS
+├── css/                    — base, themes, sidebar, request, response, modals
+└── js/                     — one file per concern; state.js loads first, app.js boots last
+</code></pre>
+<p>All JS files share the global scope and load in order — there are no modules, no bundler. See <a href="testing.html">Testing &amp; Development</a> for the no-build-step philosophy.</p>
+
+<div class="prev-next"><span></span><a href="data-storage.html">Data Storage →</a></div>
+</main>
+</div>
+</body>
+</html>

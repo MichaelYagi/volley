@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Request Editing — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>Request Editing</h1>
+<p class="lede">The request editor covers method, URL, query params, headers, auth, and body — raw JSON/XML/text, form-data with file uploads, x-www-form-urlencoded, raw binary, and GraphQL.</p>
+
+<h2>URL ↔ Params sync</h2>
+<p>Editing the URL's query string updates the Params table and vice versa, like Postman.</p>
+
+<h2>Path variables</h2>
+<p><code>:name</code> segments in the URL (e.g. <code>/users/:id</code>) show up as an editable "Path Variables" table on the Params tab; the names come from the URL, you fill in the values, and they're substituted in when the request is sent (and in the cURL preview).</p>
+
+<h2>Auto-generated headers preview</h2>
+<p>The Headers tab shows a read-only "Auto-generated" section previewing the <code>Authorization</code>/API key header from the Auth tab, the <code>Content-Type</code> the Body tab will add, and any <code>Cookie</code> header the <a href="cookie-jar.html">cookie jar</a> will attach for this request's domain. A manual header that will be silently overridden by the Auth tab (e.g. a hand-typed <code>Authorization</code>) is highlighted with a warning.</p>
+
+<h2>Bulk Edit</h2>
+<p>Every params/headers/form-data/variables table has a <strong>Bulk Edit</strong> button above it. Click it to switch to a plain-text editor with one <code>name: value</code> pair per line — handy for pasting in a block of headers or query params at once. Prefix a line with <code>// </code> to add it as a disabled row. Click <strong>Form Edit</strong> to switch back to the table view; rows are matched back to their previous id/notes by name where possible.</p>
+
+<h2>Notes on params/headers</h2>
+<p>Annotate individual rows ("Dev key", "pagination cursor", etc.) — notes are stored alongside the row and don't affect the request.</p>
+
+<h2>cURL</h2>
+<p>Every request shows a live curl command that updates as you edit, with one-click copy. Click <strong>Edit</strong> to edit the curl directly — change the method, URL, headers, or body in curl syntax and <strong>Save</strong> to apply it back to the request fields. See <a href="export-import.html#import-curl">Import cURL</a> for bulk-importing curl commands into new requests.</p>
+
+<h2>Response viewer</h2>
+<p>Status, timing, size, collapsible JSON tree, raw body, response headers. The JSON tree is virtualized (only visible rows are in the DOM) and parsed off the main thread in a Web Worker, so large responses stay fast to render and scroll without freezing the tab.</p>
+
+<div class="prev-next"><a href="environment-variables.html">← Environment Variables</a><a href="auth-types.html">Auth Types →</a></div>
+</main>
+</div>
+</body>
+</html>

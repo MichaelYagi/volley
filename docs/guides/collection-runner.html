@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collection Runner &amp; CLI — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>Collection Runner &amp; CLI</h1>
+<p class="lede">Run every request in a collection or folder sequentially — from the UI, or headlessly from the command line for CI/CD.</p>
+
+<h2>Collection Runner</h2>
+<p>Right-click a collection and choose <strong>Run Collection</strong> (or right-click a folder and choose <strong>Run Folder</strong>) to send every request in it, one after another. Each request runs the same way it would from its tab — pre-request script, send, test script — except nothing happens in the UI; instead a runner modal shows live results: method, name, status (or error), response time, and a <code>passed/total tests</code> badge for any test scripts.</p>
+<p>Pre-request and test scripts share the same active environment and globals across the whole run, so a value extracted by <code>pm.environment.set(...)</code> (or <code>pm.globals.set(...)</code>) in one request's test script is available to later requests' pre-request scripts — useful for chains like "log in, then use the returned token for the rest of the requests in the collection". Click <strong>Stop</strong> to end the run after the current request finishes.</p>
+
+<h3 id="data-driven-runs">Data-driven runs (CSV/JSON)</h3>
+<p>Before clicking <strong>Start Run</strong>, optionally choose a <code>.csv</code> or <code>.json</code> data file:</p>
+<ul>
+  <li><strong>CSV</strong> — the first row is treated as headers; every other row becomes a data row, one column per header.</li>
+  <li><strong>JSON</strong> — must be an array of objects; each object becomes a data row.</li>
+</ul>
+<p>When a data file is attached, the whole run repeats once per row. While a row is active, its columns take priority over environment/global variables for <code>{{variable}}</code> interpolation, and are also readable from scripts via <code>pm.iterationData.get('columnName')</code>. Each result in the runner modal is tagged with its iteration number when running with data.</p>
+
+<h2>CLI Runner</h2>
+<p><code>cli.js</code> runs the same Collection Runner logic from the command line, without a browser — useful for CI/CD pipelines. It shares its core (<code>lib/headless-runner.js</code>) with the <a href="monitors.html">Monitors</a> scheduler.</p>
+<pre><code>node cli.js &lt;collection&gt; [folder] [options]</code></pre>
+<ul>
+  <li><code>&lt;collection&gt;</code> — name of the collection to run (required)</li>
+  <li><code>[folder]</code> — name of a folder within that collection to run instead of the whole collection (optional)</li>
+</ul>
+<p>Options:</p>
+<ul>
+  <li><code>--env &lt;name&gt;</code> — use this environment (by name) instead of the active one</li>
+  <li><code>--data &lt;file&gt;</code> — a CSV/JSON data file for a data-driven run</li>
+  <li><code>--data-dir &lt;dir&gt;</code> — same as <code>server.js</code>'s <code>--data-dir</code>, defaults to <code>./data</code></li>
+</ul>
+<pre><code>node cli.js "My API" --env Staging --data rows.csv</code></pre>
+<p>For each request, prints its method, name, status (or error), and elapsed time, plus <code>PASS</code>/<code>FAIL</code> lines for any test scripts, followed by a summary line. The process exits with code <code>1</code> if any request errored or returned a 4xx/5xx response, or if any test failed — <code>0</code> otherwise.</p>
+
+<div class="prev-next"><a href="scripts-and-testing.html">← Scripts &amp; Tests</a><a href="monitors.html">Monitors →</a></div>
+</main>
+</div>
+</body>
+</html>

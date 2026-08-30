@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log Viewer &amp; Settings — Volley Docs</title>
+<link rel="icon" href="../favicon.svg">
+<link rel="stylesheet" href="../docs.css">
+<script src="../docs.js" defer></script>
+</head>
+<body>
+<div id="docs-topbar"></div>
+<div id="docs-shell">
+<nav id="docs-nav"></nav>
+<main>
+<h1>Log Viewer &amp; Settings</h1>
+<p class="lede">Live server logs, and the feature-flag switches that control a couple of opt-in features.</p>
+
+<h2>Log Viewer</h2>
+<p>Enable <strong>⚙ Settings → General → Show logs</strong> to add a <strong>Logs</strong> button to the topbar. Click it to open a live-streaming view of the server's log output.</p>
+<ul>
+  <li><strong>History</strong> — the server keeps a configurable in-memory ring buffer (default 500 lines, adjustable in Settings) that is replayed instantly when the modal opens. No disk I/O.</li>
+  <li><strong>Live stream</strong> — new log lines arrive via Server-Sent Events (<code>/api/logs/stream</code>) and are appended as they happen.</li>
+  <li><strong>Auto-scroll</strong> — the view stays pinned to the bottom as lines arrive. Scroll up to read earlier output; auto-scroll resumes automatically when you scroll back to the bottom.</li>
+  <li><strong>Close</strong> disconnects the SSE stream. Re-opening reconnects and replays the current buffer.</li>
+</ul>
+<p>Errors are highlighted in red, warnings in amber.</p>
+
+<h3>Buffer size</h3>
+<p>The <strong>Log buffer size</strong> setting (under Show logs in Settings) controls how many lines are kept in memory. Changes apply immediately — if you lower the size, the oldest lines are trimmed right away. The value is persisted in <code>config/logs.json</code>.</p>
+
+<h2>Settings</h2>
+<p>Click <strong>⚙</strong> in the topbar to open the Settings modal.</p>
+<table>
+<tr><th>Section</th><th>Setting</th><th>Description</th></tr>
+<tr><td>General</td><td><strong>Show logs</strong></td><td>Adds a Logs button to the topbar.</td></tr>
+<tr><td>General</td><td><strong>Buffer size</strong></td><td>Number of log lines kept in memory (10–10000, default 500). Only visible when Show logs is enabled.</td></tr>
+<tr><td>Experimental</td><td><strong>Git sync</strong></td><td>Adds a Git button to the topbar. See <a href="git-sync.html">Git Sync</a>.</td></tr>
+</table>
+<p>Feature flags are stored in <code>localStorage</code> — they are per-device and not synced.</p>
+
+<div class="prev-next"><a href="git-sync.html">← Git Sync</a><a href="testing.html">Testing &amp; Development →</a></div>
+</main>
+</div>
+</body>
+</html>

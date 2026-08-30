@@ -25,7 +25,7 @@ Then open `http://localhost:5874`. No dependencies — `server.js` only uses Nod
 npx @michaelyagi/volley
 ```
 
-See [Getting Started](docs/guides/getting-started.html) for ports, `--data-dir` (sharing `data/` across machines), and project layout.
+See [Getting Started](https://michaelyagi.github.io/volley/guides/getting-started.html) for ports, `--data-dir` (sharing `data/` across machines), and project layout.
 
 ## Features
 
@@ -61,7 +61,7 @@ Full details on every feature: **[michaelyagi.github.io/volley](https://michaely
 node --test   # run the test suite (no dependencies, Node 18+)
 ```
 
-See [Testing & Development](docs/guides/testing.html) for what's covered and the no-build-step philosophy.
+See [Testing & Development](https://michaelyagi.github.io/volley/guides/testing.html) for what's covered and the no-build-step philosophy.
 
 ## Releasing
 
